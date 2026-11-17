@@ -1,0 +1,190 @@
+import React, { useState } from 'react';
+import { useERP } from '../../context/ERPContext';
+import SectionCard from '../ui/SectionCard';
+import Modal from '../ui/Modal';
+import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+
+export default function PriceListsSection() {
+  const { data, getCompanyName, savePriceItem, deletePriceItem } = useERP();
+  const [priceTab, setPriceTab] = useState('wholesale');
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [priceForm, setPriceForm] = useState({
+    listType: 'wholesale',
+    productId: 1,
+    price: '',
+    expiry: '2026-12-31'
+  });
+
+  const currentList = data.priceLists[priceTab] || [];
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <SectionCard
+        title="🏷️ قوائم أسعار المنتجات (جملة وتجزئة)"
+        subtitle="تُحمّل تلقائياً في فاتورة المبيعات حسب تصنيف العميل"
+        actions={
+          <button
+            onClick={() => {
+              setPriceForm({ listType: priceTab, productId: data.products[0]?.id || 1, price: '', expiry: '2026-12-31' });
+              setPriceModalOpen(true);
+            }}
+            className="px-4 py-2 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>إضافة / تعديل سعر صنف</span>
+          </button>
+        }
+      >
+        <div className="flex gap-2 border-b border-slate-200 mb-4">
+          <button
+            onClick={() => setPriceTab('wholesale')}
+            className={`px-5 py-2.5 text-sm font-bold border-b-3 transition cursor-pointer ${
+              priceTab === 'wholesale'
+                ? 'border-[#1a237e] text-[#1a237e]'
+                : 'border-transparent text-slate-500'
+            }`}
+          >
+            قائمة أسعار الجملة ({data.priceLists.wholesale.length})
+          </button>
+          <button
+            onClick={() => setPriceTab('retail')}
+            className={`px-5 py-2.5 text-sm font-bold border-b-3 transition cursor-pointer ${
+              priceTab === 'retail'
+                ? 'border-[#1a237e] text-[#1a237e]'
+                : 'border-transparent text-slate-500'
+            }`}
+          >
+            قائمة أسعار التجزئة ({data.priceLists.retail.length})
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead className="bg-slate-100 text-xs font-bold text-slate-700">
+              <tr>
+                <th className="p-3">#</th>
+                <th className="p-3">اسم المنتج</th>
+                <th className="p-3">الشركة المنتجة</th>
+                <th className="p-3">{priceTab === 'wholesale' ? 'سعر الجملة' : 'سعر التجزئة'}</th>
+                <th className="p-3">تاريخ الصلاحية</th>
+                <th className="p-3">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {currentList.map((item, idx) => {
+                const prod = data.products.find(p => p.id === item.productId);
+                return (
+                  <tr key={item.id} className="hover:bg-slate-50">
+                    <td className="p-3">{idx + 1}</td>
+                    <td className="p-3 font-bold text-slate-800">{prod ? prod.name : 'غير معروف'}</td>
+                    <td className="p-3 text-xs text-slate-600">{prod ? getCompanyName(prod.companyId) : '-'}</td>
+                    <td className="p-3 font-extrabold text-emerald-700">{item.price.toLocaleString()} ج.م</td>
+                    <td className="p-3 font-mono text-xs">{item.expiry}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setPriceForm({
+                              listType: priceTab,
+                              productId: item.productId,
+                              price: item.price,
+                              expiry: item.expiry
+                            });
+                            setPriceModalOpen(true);
+                          }}
+                          className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deletePriceItem(item.id, priceTab)}
+                          className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      <Modal
+        isOpen={priceModalOpen}
+        onClose={() => setPriceModalOpen(false)}
+        title="حفظ سعر صنف في القائمة"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!priceForm.price) return;
+            savePriceItem(priceForm);
+            setPriceModalOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">القائمة:</label>
+            <select
+              value={priceForm.listType}
+              onChange={(e) => setPriceForm({ ...priceForm, listType: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold"
+            >
+              <option value="wholesale">قائمة الجملة</option>
+              <option value="retail">قائمة التجزئة</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">الصنف:</label>
+            <select
+              value={priceForm.productId}
+              onChange={(e) => setPriceForm({ ...priceForm, productId: Number(e.target.value) })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold"
+            >
+              {data.products.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">السعر (ج.م):</label>
+            <input
+              type="number"
+              step="any"
+              value={priceForm.price}
+              onChange={(e) => setPriceForm({ ...priceForm, price: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">تاريخ الصلاحية:</label>
+            <input
+              type="date"
+              value={priceForm.expiry}
+              onChange={(e) => setPriceForm({ ...priceForm, expiry: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-3">
+            <button
+              type="button"
+              onClick={() => setPriceModalOpen(false)}
+              className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-[#1a237e] text-white rounded-xl text-xs font-bold cursor-pointer"
+            >
+              حفظ السعر
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
