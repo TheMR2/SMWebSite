@@ -19,39 +19,21 @@ export const ROLE_PERMISSIONS = {
       'dashboard', 'customers-list', 'customer-account', 'sales-invoice', 'return-invoice', 'payment-invoice', 'price-lists'
     ]
   },
-  'accounting-sales': {
-    label: 'محاسب مبيعات',
+  'accountant': {
+    label: 'محاسب',
     badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
     allowedSections: [
-      'dashboard', 'sales-invoice', 'return-invoice', 'payment-invoice', 'invoices-log', 'customers-list', 'customer-account', 'sales-reps', 'rep-report', 'price-lists'
-    ]
-  },
-  'accounting-purchases': {
-    label: 'محاسب مشتريات',
-    badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
-    allowedSections: [
-      'dashboard', 'purchase-prices', 'purchase-returns', 'companies-list', 'company-accounts', 'products', 'price-lists', 'warehouse-overview'
-    ]
-  },
-  'accounting-warehouse': {
-    label: 'محاسب مخازن',
-    badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
-    allowedSections: [
-      'dashboard', 'warehouse-overview', 'warehouse-detail', 'warehouse-movements', 'transfer-invoice', 'products', 'purchase-returns'
-    ]
-  },
-  'accounting-customers': {
-    label: 'محاسب عملاء',
-    badgeClass: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-    allowedSections: [
-      'dashboard', 'customers-list', 'customer-account', 'payment-invoice', 'sales-invoice', 'return-invoice', 'rep-report'
-    ]
-  },
-  'accounting-expenses': {
-    label: 'محاسب مصروفات',
-    badgeClass: 'bg-rose-100 text-rose-800 border-rose-200',
-    allowedSections: [
-      'dashboard', 'cash-balance', 'cash-operations', 'expenses-list', 'add-expense', 'transfer-invoice'
+      'dashboard',
+      'cash-balance', 'cash-operations',
+      'warehouse-overview', 'warehouse-detail', 'warehouse-movements',
+      'sales-invoice', 'return-invoice', 'payment-invoice', 'transfer-invoice', 'invoices-log',
+      'customers-list', 'customer-account',
+      'sales-reps', 'rep-report',
+      'purchase-prices', 'purchase-returns',
+      'expenses-list', 'add-expense',
+      'price-lists', 'products',
+      'companies-list', 'company-accounts',
+      'accounting-users'
     ]
   }
 };
@@ -230,11 +212,7 @@ export function createInitialData() {
     { id: 1, username: 'admin', password: '1234', name: 'المدير العام', role: 'admin', status: 'active' },
     { id: 2, username: 'sales-manager', password: '1234', name: 'مشرف المبيعات', role: 'sales-manager', status: 'active' },
     { id: 3, username: 'rep1', password: '1234', name: 'مندوب مبيعات 1', role: 'sales-rep', status: 'active' },
-    { id: 4, username: 'acc-sales', password: '1234', name: 'محاسب مبيعات', role: 'accounting-sales', status: 'active' },
-    { id: 5, username: 'acc-purchases', password: '1234', name: 'محاسب مشتريات', role: 'accounting-purchases', status: 'active' },
-    { id: 6, username: 'acc-warehouse', password: '1234', name: 'محاسب مخازن', role: 'accounting-warehouse', status: 'active' },
-    { id: 7, username: 'acc-customers', password: '1234', name: 'محاسب عملاء', role: 'accounting-customers', status: 'active' },
-    { id: 8, username: 'acc-expenses', password: '1234', name: 'محاسب مصروفات', role: 'accounting-expenses', status: 'active' }
+    { id: 4, username: 'accountant', password: '1234', name: 'المحاسب', role: 'accountant', status: 'active' }
   ];
 
   return {

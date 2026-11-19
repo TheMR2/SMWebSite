@@ -104,7 +104,7 @@ const MENU_GROUPS = [
       { label: 'إدارة المستخدمين (الأدمن)', sectionId: 'admin-users' },
       { label: 'شاشة مشرف المبيعات', sectionId: 'sales-manager' },
       { label: 'شاشة مناديب المبيعات', sectionId: 'sales-reps-users' },
-      { label: 'شاشة المحاسبين', sectionId: 'accounting-users' }
+      { label: 'شاشة المحاسب', sectionId: 'accounting-users' }
     ]
   }
 ];

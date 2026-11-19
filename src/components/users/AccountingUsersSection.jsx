@@ -7,16 +7,17 @@ export default function AccountingUsersSection() {
   const { setActiveSection } = useERP();
 
   const accCards = [
-    { title: 'محاسب مبيعات', desc: 'إصدار الفواتير والمرتجعات ومراجعة المناديب', target: 'sales-invoice', color: 'blue' },
-    { title: 'محاسب مشتريات', desc: 'تحديث قوائم الأسعار ومرتجعات الشركات', target: 'purchase-prices', color: 'green' },
-    { title: 'محاسب مخازن', desc: 'متابعة 24 مخزن وحركات الصرف والتوريد', target: 'warehouse-overview', color: 'orange' },
-    { title: 'محاسب عملاء', desc: 'متابعة الحدود الائتمانية وكشوف الحسابات', target: 'customers-list', color: 'purple' },
-    { title: 'محاسب مصروفات وخزنة', desc: 'إدارة الخزنة الرئيسية والمصروفات', target: 'cash-balance', color: 'amber' }
+    { title: 'المبيعات والفواتير', desc: 'إصدار فواتير المبيعات والمرتجعات وسندات التحصيل', target: 'sales-invoice', color: 'blue' },
+    { title: 'المشتريات والأسعار', desc: 'تحديث قوائم الأسعار ومرتجعات الشركات المنتجة', target: 'purchase-prices', color: 'green' },
+    { title: 'إدارة المخازن (24 مخزن)', desc: 'متابعة أرصدة المخازن وحركات الصرف والتوريد', target: 'warehouse-overview', color: 'orange' },
+    { title: 'حسابات العملاء والائتمان', desc: 'متابعة الحدود الائتمانية وكشوف الحسابات والمديونيات', target: 'customers-list', color: 'purple' },
+    { title: 'الخزنة الرئيسية والمصروفات', desc: 'إدارة الرصيد النقدي وحركات الخزنة والمصروفات', target: 'cash-balance', color: 'amber' },
+    { title: 'حسابات الشركات المنتجة', desc: 'متابعة التوريدات والمدفوعات للشركات المنتجة', target: 'companies-list', color: 'blue' }
   ];
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <SectionCard title="🧮 أقسام المحاسبين المتخصصين">
+      <SectionCard title="🧮 شاشة المحاسب — المهام المحاسبية الشاملة">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {accCards.map((c, idx) => (
             <StatCard

@@ -3,13 +3,54 @@ import { createInitialData, ROLE_PERMISSIONS } from '../data/initialData';
 
 const ERPContext = createContext(null);
 const STORAGE_KEY = 'alsafa_erp_state_v1';
+const LEGACY_ACCOUNTANT_USERNAMES = new Set([
+  'acc-sales',
+  'acc-purchases',
+  'acc-warehouse',
+  'acc-customers',
+  'acc-expenses'
+]);
+
+function migrateLegacyUsers(parsed) {
+  if (!parsed || !Array.isArray(parsed.users)) return parsed;
+
+  const hasLegacy = parsed.users.some(
+    u => LEGACY_ACCOUNTANT_USERNAMES.has(u.username) || (typeof u.role === 'string' && u.role.startsWith('accounting-'))
+  );
+  if (!hasLegacy) return parsed;
+
+  const users = parsed.users
+    .filter(u => !LEGACY_ACCOUNTANT_USERNAMES.has(u.username))
+    .map(u =>
+      typeof u.role === 'string' && u.role.startsWith('accounting-')
+        ? { ...u, role: 'accountant' }
+        : u
+    );
+
+  const hasDefaultAccountant = users.some(u => u.username === 'accountant');
+  if (!hasDefaultAccountant) {
+    const id = users.some(u => u.id === 4)
+      ? Math.max(0, ...users.map(u => Number(u.id) || 0)) + 1
+      : 4;
+    users.push({
+      id,
+      username: 'accountant',
+      password: '1234',
+      name: 'المحاسب',
+      role: 'accountant',
+      status: 'active'
+    });
+  }
+
+  return { ...parsed, users };
+}
 
 export function ERPProvider({ children }) {
   const [data, setData] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        return migrateLegacyUsers(JSON.parse(saved));
       }
     } catch (e) {
       console.error('Failed to load state from localStorage:', e);
@@ -68,7 +109,11 @@ export function ERPProvider({ children }) {
 
   const canAccessSection = (sectionId) => {
     if (!currentUser) return false;
-    const roleConfig = ROLE_PERMISSIONS[currentUser.role];
+    const normalizedRole =
+      typeof currentUser.role === 'string' && currentUser.role.startsWith('accounting-')
+        ? 'accountant'
+        : currentUser.role;
+    const roleConfig = ROLE_PERMISSIONS[normalizedRole];
     if (!roleConfig) return true;
     if (roleConfig.allowedSections.includes('*')) return true;
     return roleConfig.allowedSections.includes(sectionId);

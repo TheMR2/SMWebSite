@@ -22,7 +22,7 @@ export default function AdminUsersSection() {
     <div className="space-y-6 animate-fadeIn">
       <SectionCard
         title="إدارة المستخدمين والصلاحيات (الأدمن)"
-        subtitle="التحكم في حسابات الدخول وصلاحيات الموظفين والمحاسبين"
+        subtitle="التحكم في حسابات الدخول وصلاحيات المستخدمين"
         icon={Shield}
         actions={
           <button
