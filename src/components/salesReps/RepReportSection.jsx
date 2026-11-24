@@ -23,12 +23,12 @@ export default function RepReportSection() {
         title="📊 تقرير مندوب ومديونية عملائه"
         subtitle="متابعة مبيعات المندوب وعهدته وأرصدة العملاء التابعين له"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <label className="text-xs font-bold text-slate-700">اختر المندوب:</label>
             <select
               value={rep?.id || ''}
               onChange={(e) => setSelectedRepId(Number(e.target.value))}
-              className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+              className="w-full sm:w-auto max-w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
             >
               {data.salesReps.map(r => (
                 <option key={r.id} value={r.id}>{r.name}</option>

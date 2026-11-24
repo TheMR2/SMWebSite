@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Building2, Lock, User, LogIn, ShieldCheck } from 'lucide-react';
+import { Lock, User, LogIn, ShieldCheck } from 'lucide-react';
+import logoImg from '../../assets/logo.png';
 
 export default function LoginScreen() {
   const { login, data } = useERP();
@@ -28,12 +29,14 @@ export default function LoginScreen() {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-[#1a237e] via-[#283593] to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 border border-indigo-100 animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-5 sm:p-8 border border-indigo-100 animate-fadeIn">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-indigo-900 text-amber-300 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-            <Building2 className="w-9 h-9" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#1a237e]">
+          <img
+            src={logoImg}
+            alt="شعار شركة الصفا والمروة"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover mx-auto mb-3 shadow-lg ring-4 ring-indigo-100"
+          />
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#1a237e]">
             شركة الصفا والمروة
           </h1>
           <p className="text-sm text-slate-500 font-semibold mt-1">
@@ -94,7 +97,7 @@ export default function LoginScreen() {
             <ShieldCheck className="w-4 h-4 text-indigo-700" />
             <span>دخول سريع بحسابات المستخدمين (اضغط للتجربة المباشرة):</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {data.users.map((u) => (
               <button
                 key={u.id}

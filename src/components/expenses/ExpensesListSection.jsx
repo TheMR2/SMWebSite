@@ -4,14 +4,9 @@ import SectionCard from '../ui/SectionCard';
 import Badge from '../ui/Badge';
 import { PlusCircle, Trash2 } from 'lucide-react';
 
-export const EXPENSE_TYPES = {
-  'general': 'مصروفات عامة',
-  'salary': 'مرتبات وأجور',
-  'bank-deposit': 'إيداع بنكي',
-  'cash-box': 'كاش بوكس',
-  'rep-commission': 'عمولة مناديب',
-  'agent-commission': 'عمولة وكيل'
-};
+import { EXPENSE_PAYMENT_TYPES } from '../../data/initialData';
+
+export const EXPENSE_TYPES = EXPENSE_PAYMENT_TYPES;
 
 export default function ExpensesListSection() {
   const { data, setActiveSection, deleteExpense } = useERP();
@@ -38,7 +33,7 @@ export default function ExpensesListSection() {
               <tr>
                 <th className="p-3">#</th>
                 <th className="p-3">التاريخ</th>
-                <th className="p-3">بند المصروف</th>
+                <th className="p-3">نوع المصروف (طريقة الدفع)</th>
                 <th className="p-3">الوصف</th>
                 <th className="p-3">المبلغ</th>
                 <th className="p-3">إجراء</th>

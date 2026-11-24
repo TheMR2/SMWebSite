@@ -8,7 +8,7 @@ export default function ToastNotifications() {
   if (!notifications || notifications.length === 0) return null;
 
   return (
-    <div className="no-print fixed bottom-5 left-5 z-50 space-y-2 max-w-md w-full">
+    <div className="no-print fixed bottom-3 inset-x-3 sm:inset-x-auto sm:bottom-5 sm:left-5 z-50 space-y-2 sm:max-w-md sm:w-full">
       {notifications.map((n) => (
         <div
           key={n.id}

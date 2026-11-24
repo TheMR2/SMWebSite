@@ -58,7 +58,7 @@ export default function RepFormModal({ isOpen, onClose, initialData }) {
             className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">نوع المبيعات:</label>
             <select

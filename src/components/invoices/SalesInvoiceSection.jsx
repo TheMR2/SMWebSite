@@ -1,35 +1,57 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Plus, Trash2, Printer, Save, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { PAYMENT_METHODS } from '../../data/initialData';
+import { Plus, Trash2, Printer, Save, RotateCcw, CheckCircle2, Lock } from 'lucide-react';
+import logoImg from '../../assets/logo.png';
 
 export default function SalesInvoiceSection() {
   const {
     data,
+    currentUser,
+    currentRep,
     getCustomerName,
     getRepName,
     getWarehouseName,
     createSalesInvoice
   } = useERP();
 
+  const isSalesRep = currentUser?.role === 'sales-rep';
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const availableCustomers = useMemo(() => {
+    if (isSalesRep && currentRep) {
+      const filtered = data.customers.filter(c => c.type === currentRep.type);
+      return filtered.length > 0 ? filtered : data.customers;
+    }
+    return data.customers;
+  }, [data.customers, isSalesRep, currentRep]);
+
+  const initialRepId = isSalesRep && currentRep
+    ? String(currentRep.id)
+    : String(data.salesReps[0]?.id || '1');
+
+  const initialCustomerId = String(availableCustomers[0]?.id || data.customers[0]?.id || '1');
 
   const [invDate, setInvDate] = useState(todayStr);
   const [invNumber, setInvNumber] = useState('');
-  const [customerId, setCustomerId] = useState('1');
-  const [repId, setRepId] = useState('1');
-  const [warehouseId, setWarehouseId] = useState('1');
+  const [customerId, setCustomerId] = useState(initialCustomerId);
+  const [repId, setRepId] = useState(initialRepId);
+  const [warehouseId, setWarehouseId] = useState(String(currentRep?.warehouseId || data.warehouses[0]?.id || '1'));
   const [paymentType, setPaymentType] = useState('credit');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashDestination, setCashDestination] = useState('main_treasury');
   const [taxEnabled, setTaxEnabled] = useState(true);
+  const [bonusEnabled, setBonusEnabled] = useState(false);
   const [bonuses, setBonuses] = useState('');
-  const [items, setItems] = useState([
-    { productId: 1, qty: 10, price: 250, discount: 0, discountType: 'amount' }
-  ]);
 
   const selectedCustomer = useMemo(
     () => data.customers.find(c => c.id === Number(customerId)),
     [data.customers, customerId]
+  );
+
+  const selectedRep = useMemo(
+    () => data.salesReps.find(r => r.id === Number(repId)) || currentRep,
+    [data.salesReps, repId, currentRep]
   );
 
   const selectedWarehouse = useMemo(
@@ -37,27 +59,66 @@ export default function SalesInvoiceSection() {
     [data.warehouses, warehouseId]
   );
 
-  const getProductDefaultPrice = (prodId, custObj = selectedCustomer) => {
-    const listType = custObj?.type === 'retail' ? 'retail' : 'wholesale';
-    const found = data.priceLists[listType]?.find(p => p.productId === Number(prodId));
+  const activePriceListType = useMemo(() => {
+    if (isSalesRep && currentRep) return currentRep.type === 'retail' ? 'retail' : 'wholesale';
+    return selectedCustomer?.type === 'retail' ? 'retail' : 'wholesale';
+  }, [isSalesRep, currentRep, selectedCustomer]);
+
+  const getProductDefaultPrice = (prodId, listTypeOverride = activePriceListType) => {
+    const found = data.priceLists[listTypeOverride]?.find(p => p.productId === Number(prodId));
     return found ? found.price : 0;
   };
+
+  const [items, setItems] = useState(() => {
+    const firstProd = data.products[0]?.id || 1;
+    return [
+      {
+        productId: firstProd,
+        qty: 10,
+        unit: 'كارتون',
+        details: '',
+        price: getProductDefaultPrice(firstProd),
+        discount: 0,
+        discountType: 'amount'
+      }
+    ];
+  });
+
+  // Sync rep lock & prices if currentRep changes
+  useEffect(() => {
+    if (isSalesRep && currentRep) {
+      setRepId(String(currentRep.id));
+      const matchingCust = data.customers.find(c => c.type === currentRep.type);
+      if (matchingCust) setCustomerId(String(matchingCust.id));
+      const listType = currentRep.type === 'retail' ? 'retail' : 'wholesale';
+      setItems(prev =>
+        prev.map(item => ({
+          ...item,
+          price: getProductDefaultPrice(item.productId, listType)
+        }))
+      );
+    }
+  }, [isSalesRep, currentRep]);
 
   const handleCustomerChange = (newCustId) => {
     setCustomerId(newCustId);
     const cust = data.customers.find(c => c.id === Number(newCustId));
     if (cust) {
-      if (cust.repId) setRepId(String(cust.repId));
+      if (!isSalesRep && cust.repId) setRepId(String(cust.repId));
+      const listType = isSalesRep && currentRep
+        ? currentRep.type
+        : (cust.type === 'retail' ? 'retail' : 'wholesale');
       setItems(prev =>
         prev.map(item => ({
           ...item,
-          price: item.productId ? getProductDefaultPrice(item.productId, cust) : item.price
+          price: item.productId ? getProductDefaultPrice(item.productId, listType) : item.price
         }))
       );
     }
   };
 
   const handleItemChange = (index, field, val) => {
+    if (field === 'price') return; // Price is strictly non-editable
     setItems(prev =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
@@ -77,6 +138,8 @@ export default function SalesInvoiceSection() {
       {
         productId: defaultProd,
         qty: 1,
+        unit: 'كارتون',
+        details: '',
         price: getProductDefaultPrice(defaultProd),
         discount: 0,
         discountType: 'amount'
@@ -100,6 +163,8 @@ export default function SalesInvoiceSection() {
     return {
       ...item,
       productName: prod ? prod.name : 'صنف',
+      unit: item.unit || 'كارتون',
+      details: item.details || '',
       total,
       discountValue: discVal,
       net
@@ -113,16 +178,22 @@ export default function SalesInvoiceSection() {
   const taxAmount = netBeforeTax * (taxRate / 100);
   const grandTotal = netBeforeTax + taxAmount;
 
-  const isExceedingMonthlyLimit =
-    paymentType === 'credit' &&
-    selectedCustomer &&
-    selectedCustomer.currentBalance + grandTotal > selectedCustomer.monthlyLimit;
-
   const resetSalesForm = () => {
     setInvNumber('');
+    setBonusEnabled(false);
     setBonuses('');
     const firstProd = data.products[0]?.id || 1;
-    setItems([{ productId: firstProd, qty: 1, price: getProductDefaultPrice(firstProd), discount: 0, discountType: 'amount' }]);
+    setItems([
+      {
+        productId: firstProd,
+        qty: 1,
+        unit: 'كارتون',
+        details: '',
+        price: getProductDefaultPrice(firstProd),
+        discount: 0,
+        discountType: 'amount'
+      }
+    ]);
   };
 
   const handleSaveSalesInvoice = () => {
@@ -143,7 +214,7 @@ export default function SalesInvoiceSection() {
       paymentType,
       paymentMethod,
       cashDestination,
-      bonuses,
+      bonuses: bonusEnabled ? bonuses.trim() : '',
       items: calculatedItems,
       subtotal: Math.round(subtotal * 100) / 100,
       totalDiscount: Math.round(totalDiscount * 100) / 100,
@@ -156,13 +227,20 @@ export default function SalesInvoiceSection() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 max-w-5xl mx-auto">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm border border-slate-200 max-w-6xl mx-auto">
         <div className="text-center border-b-2 border-[#1a237e] pb-4 mb-6">
-          <h2 className="text-2xl font-extrabold text-[#1a237e]">
+          <img
+            src={logoImg}
+            alt="شعار شركة الصفا والمروة"
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mx-auto mb-2 shadow-sm ring-2 ring-indigo-100"
+          />
+          <h2 className="text-lg sm:text-2xl font-extrabold text-[#1a237e]">
             شركة الصفا والمروة للمواد الغذائية
           </h2>
-          <p className="text-sm font-bold text-slate-600 mt-1">فاتورة مبيعات ضريبية / تجارية</p>
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs">
+          <p className="text-sm font-bold text-slate-600 mt-1">
+            فاتورة مبيعات ضريبية / تجارية ({activePriceListType === 'retail' ? 'تجزئة' : 'جملة'})
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 mt-3 text-xs">
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-slate-700">التاريخ:</span>
               <input
@@ -172,6 +250,18 @@ export default function SalesInvoiceSection() {
                 className="p-1.5 border border-slate-300 rounded-lg"
               />
             </div>
+
+            {/* اسم المندوب بجانب التاريخ */}
+            <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">
+              <span className="font-bold text-indigo-800">اسم المندوب:</span>
+              <span className="font-extrabold text-indigo-950">{getRepName(repId)}</span>
+              {selectedRep && (
+                <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-extrabold text-indigo-700 border border-indigo-200">
+                  {selectedRep.type === 'retail' ? 'تجزئة فقط' : 'جملة فقط'}
+                </span>
+              )}
+            </div>
+
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-slate-700">رقم الفاتورة:</span>
               <input
@@ -179,7 +269,7 @@ export default function SalesInvoiceSection() {
                 value={invNumber}
                 onChange={(e) => setInvNumber(e.target.value)}
                 placeholder={`تلقائي (INV-${1000 + data.invoices.length + 1})`}
-                className="p-1.5 border border-slate-300 rounded-lg font-mono"
+                className="w-44 max-w-full p-1.5 border border-slate-300 rounded-lg font-mono"
               />
             </div>
           </div>
@@ -193,22 +283,21 @@ export default function SalesInvoiceSection() {
               onChange={(e) => handleCustomerChange(e.target.value)}
               className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white"
             >
-              {data.customers.map(c => (
+              {availableCustomers.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.type === 'wholesale' ? 'سعر جملة' : 'سعر تجزئة'})
                 </option>
               ))}
             </select>
             {selectedCustomer && (
-              <div className="mt-1.5 text-[11px] text-slate-600 flex justify-between">
-                <span>مديونية حالية: <strong className="text-rose-700">{selectedCustomer.currentBalance.toLocaleString()} ج.م</strong></span>
-                <span>الحد الشهري: <strong>{selectedCustomer.monthlyLimit.toLocaleString()} ج.م</strong></span>
+              <div className="mt-1.5 text-[11px] text-slate-600">
+                مديونية حالية: <strong className="text-rose-700">{selectedCustomer.currentBalance.toLocaleString()} ج.م</strong>
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">المخزن الصارف للبضاعة:</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">المخزن الصارف للبضاعة (الشركة):</label>
             <select
               value={warehouseId}
               onChange={(e) => setWarehouseId(e.target.value)}
@@ -216,7 +305,7 @@ export default function SalesInvoiceSection() {
             >
               {data.warehouses.map(w => (
                 <option key={w.id} value={w.id}>
-                  {w.name} (بضاعة: {w.goodsValue.toLocaleString()} ج.م)
+                  {w.name}
                 </option>
               ))}
             </select>
@@ -229,15 +318,26 @@ export default function SalesInvoiceSection() {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">مندوب المبيعات:</label>
-            <select
-              value={repId}
-              onChange={(e) => setRepId(e.target.value)}
-              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white"
-            >
-              {data.salesReps.map(r => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
+            {isSalesRep ? (
+              <input
+                type="text"
+                readOnly
+                value={`${getRepName(repId)} (${selectedRep?.type === 'retail' ? 'تجزئة فقط' : 'جملة فقط'})`}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-100 text-slate-700"
+              />
+            ) : (
+              <select
+                value={repId}
+                onChange={(e) => setRepId(e.target.value)}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white"
+              >
+                {data.salesReps.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} ({r.type === 'retail' ? 'تجزئة' : 'جملة'})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -259,9 +359,9 @@ export default function SalesInvoiceSection() {
               onChange={(e) => setPaymentMethod(e.target.value)}
               className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white"
             >
-              <option value="cash">نقداً (كاش)</option>
-              <option value="bank">إيداع بنكي</option>
-              <option value="check">شيك</option>
+              {Object.entries(PAYMENT_METHODS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
             </select>
           </div>
 
@@ -281,27 +381,24 @@ export default function SalesInvoiceSection() {
           )}
         </div>
 
-        {isExceedingMonthlyLimit && (
-          <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center gap-2.5 text-xs font-bold">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <span>
-              تنبيه ائتماني: إجمالي مديونية العميل بعد هذه الفاتورة ({(selectedCustomer.currentBalance + grandTotal).toLocaleString()} ج.م) سيتجاوز الحد الائتماني الشهري المسموح به ({selectedCustomer.monthlyLimit.toLocaleString()} ج.م)!
-            </span>
-          </div>
-        )}
-
         <div className="overflow-x-auto mb-4">
           <table className="w-full text-right border-collapse">
             <thead className="bg-slate-100 text-xs font-bold text-slate-700 border-b border-slate-200">
               <tr>
                 <th className="p-2.5">#</th>
-                <th className="p-2.5 min-w-48">الصنف</th>
-                <th className="p-2.5 w-24">الكمية</th>
-                <th className="p-2.5 w-28">السعر (ج.م)</th>
-                <th className="p-2.5 w-28">الإجمالي</th>
-                <th className="p-2.5 w-40">الخصم</th>
-                <th className="p-2.5 w-28">الصافي</th>
-                <th className="p-2.5 w-16 no-print">حذف</th>
+                <th className="p-2.5 min-w-44">الصنف</th>
+                <th className="p-2.5 min-w-36">تفاصيل المنتج</th>
+                <th className="p-2.5 w-44">الكمية (كارتون / حبة)</th>
+                <th className="p-2.5 w-28">
+                  <span className="inline-flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-500" />
+                    السعر (ج.م)
+                  </span>
+                </th>
+                <th className="p-2.5 w-24">الإجمالي</th>
+                <th className="p-2.5 w-36">الخصم</th>
+                <th className="p-2.5 w-24">الصافي</th>
+                <th className="p-2.5 w-14 no-print">حذف</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -321,21 +418,39 @@ export default function SalesInvoiceSection() {
                   </td>
                   <td className="p-2.5">
                     <input
-                      type="number"
-                      min="1"
-                      value={row.qty}
-                      onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-xs font-bold text-center"
+                      type="text"
+                      value={row.details || ''}
+                      onChange={(e) => handleItemChange(idx, 'details', e.target.value)}
+                      placeholder="تعديل تفاصيل / ملاحظة الصنف..."
+                      className="w-full p-2 border border-slate-300 rounded-lg text-xs"
                     />
+                  </td>
+                  <td className="p-2.5">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="1"
+                        value={row.qty}
+                        onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
+                        className="w-18 p-2 border border-slate-300 rounded-lg text-xs font-bold text-center"
+                      />
+                      <select
+                        value={row.unit || 'كارتون'}
+                        onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                        className="p-2 border border-slate-300 rounded-lg text-xs font-bold bg-slate-50"
+                      >
+                        <option value="كارتون">كارتون</option>
+                        <option value="حبة">حبة</option>
+                      </select>
+                    </div>
                   </td>
                   <td className="p-2.5">
                     <input
                       type="number"
-                      min="0"
-                      step="any"
+                      readOnly
                       value={row.price}
-                      onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-xs font-bold"
+                      className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 cursor-not-allowed"
+                      title="لا يمكن تعديل سعر المنتج — محدد من قائمة الأسعار"
                     />
                   </td>
                   <td className="p-2.5 font-semibold text-slate-700">{row.total.toFixed(2)}</td>
@@ -347,7 +462,7 @@ export default function SalesInvoiceSection() {
                         step="any"
                         value={row.discount}
                         onChange={(e) => handleItemChange(idx, 'discount', e.target.value)}
-                        className="w-20 p-2 border border-slate-300 rounded-lg text-xs"
+                        className="w-16 p-2 border border-slate-300 rounded-lg text-xs"
                       />
                       <select
                         value={row.discountType}
@@ -385,26 +500,44 @@ export default function SalesInvoiceSection() {
         </button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              منح مجانية / بونص بضاعة على الفاتورة:
-            </label>
-            <textarea
-              rows="3"
-              value={bonuses}
-              onChange={(e) => setBonuses(e.target.value)}
-              placeholder="أدخل تفاصيل المنح المجانية إن وجدت..."
-              className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
-            />
-            <label className="inline-flex items-center gap-2 mt-3 text-xs font-bold text-slate-700 cursor-pointer no-print">
+          <div className="space-y-3">
+            {/* المنحة كخيار */}
+            <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer no-print">
               <input
                 type="checkbox"
-                checked={taxEnabled}
-                onChange={(e) => setTaxEnabled(e.target.checked)}
+                checked={bonusEnabled}
+                onChange={(e) => setBonusEnabled(e.target.checked)}
                 className="rounded text-indigo-700"
               />
-              <span>تفعيل ضريبة القيمة المضافة (14%)</span>
+              <span>إضافة منحة مجانية / بونص على الفاتورة (اختياري)</span>
             </label>
+
+            {bonusEnabled && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  تفاصيل المنحة المجانية / البونص:
+                </label>
+                <textarea
+                  rows="3"
+                  value={bonuses}
+                  onChange={(e) => setBonuses(e.target.value)}
+                  placeholder="أدخل تفاصيل المنح المجانية..."
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer no-print">
+                <input
+                  type="checkbox"
+                  checked={taxEnabled}
+                  onChange={(e) => setTaxEnabled(e.target.checked)}
+                  className="rounded text-indigo-700"
+                />
+                <span>تفعيل ضريبة القيمة المضافة (14%)</span>
+              </label>
+            </div>
           </div>
 
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-sm">
@@ -430,7 +563,7 @@ export default function SalesInvoiceSection() {
         <div className="no-print mt-6 bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 text-xs">
           <div className="font-extrabold text-indigo-950 mb-2 flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-indigo-700" />
-            <span>التأثير المحاسبي والمخزني التلقائي فور الحفظ:</span>
+            <span>التأثير المحاسبي والمخزني التلقائي فور الحفظ (الفواتير القديمة لا تتأثر بأي تعديل لاحق):</span>
           </div>
           <ul className="space-y-1 text-indigo-900 list-disc list-inside">
             <li>
@@ -439,12 +572,12 @@ export default function SalesInvoiceSection() {
             <li>
               <strong>حساب العميل ({getCustomerName(customerId)}):</strong>{' '}
               {paymentType === 'credit'
-                ? `زيادة المديونية بمقدار ${grandTotal.toFixed(2)} ج.م (ليصبح الرصيد ${((selectedCustomer?.currentBalance || 0) + grandTotal).toLocaleString()} ج.م).`
+                ? `زيادة المديونية بمقدار ${grandTotal.toFixed(2)} ج.م.`
                 : 'تسجيل الفاتورة مسددة بالكامل في كشف حساب العميل دون زيادة المديونية.'}
             </li>
             {paymentType === 'cash' && (
               <li>
-                <strong>السيولة النقدية:</strong> توريد مبلغ <strong>{grandTotal.toFixed(2)} ج.م</strong> إلى{' '}
+                <strong>طريقة الدفع:</strong> {PAYMENT_METHODS[paymentMethod] || paymentMethod} — توريد <strong>{grandTotal.toFixed(2)} ج.م</strong> إلى{' '}
                 {cashDestination === 'main_treasury'
                   ? 'الخزنة الرئيسية للشركة'
                   : cashDestination === 'warehouse_cash'
@@ -462,7 +595,7 @@ export default function SalesInvoiceSection() {
           <button
             type="button"
             onClick={handleSaveSalesInvoice}
-            className="px-6 py-3 bg-[#1a237e] hover:bg-[#283593] text-white font-bold rounded-xl shadow flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center px-6 py-3 bg-[#1a237e] hover:bg-[#283593] text-white font-bold rounded-xl shadow flex items-center gap-2 cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>حفظ الفاتورة وتسميع الحسابات</span>
@@ -470,7 +603,7 @@ export default function SalesInvoiceSection() {
           <button
             type="button"
             onClick={() => window.print()}
-            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-2 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>طباعة الفاتورة</span>
@@ -478,7 +611,7 @@ export default function SalesInvoiceSection() {
           <button
             type="button"
             onClick={resetSalesForm}
-            className="px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl flex items-center gap-2 cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" />
             <span>إعادة تعيين</span>

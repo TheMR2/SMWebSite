@@ -7,18 +7,21 @@ import { PlusCircle, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react
 export default function CashBalanceSection() {
   const { data, setActiveSection } = useERP();
 
-  const totalIncoming = data.cash.transactions
-    .filter(t => t.type === 'incoming')
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalSales = data.invoices
+    .filter(inv => inv.type === 'sales')
+    .reduce((s, inv) => s + Number(inv.total || 0), 0);
 
-  const totalOutgoing = data.cash.transactions
-    .filter(t => t.type === 'outgoing')
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalExpenses = data.expenses
+    .reduce((s, exp) => s + Number(exp.amount || 0), 0);
+
+  const totalPurchases = data.companies
+    .reduce((s, comp) => s + Number(comp.totalPurchases || 0), 0);
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <SectionCard
         title="إدارة الخزنة الرئيسية والسيولة"
+        subtitle={`الرصيد الفعلي الحالي بالخزنة: ${data.cash.balance.toLocaleString()} ج.م`}
         icon={Wallet}
         actions={
           <button
@@ -26,30 +29,30 @@ export default function CashBalanceSection() {
             className="px-4 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>تسجيل حركة خزنة (وارد / صادر)</span>
+            <span>تسجيل حركة خزنة</span>
           </button>
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             color="blue"
-            label="الرصيد الافتتاحي"
+            label="رصيد افتتاحي"
             value={`${data.cash.openingBalance.toLocaleString()} ج.م`}
           />
           <StatCard
             color="green"
-            label="إجمالي الوارد (شامل الافتتاحي)"
-            value={`${totalIncoming.toLocaleString()} ج.م`}
+            label="إجمالي المبيعات"
+            value={`${totalSales.toLocaleString()} ج.م`}
           />
           <StatCard
             color="orange"
-            label="إجمالي الصادر والمصروفات"
-            value={`${totalOutgoing.toLocaleString()} ج.م`}
+            label="إجمالي المصروفات"
+            value={`${totalExpenses.toLocaleString()} ج.م`}
           />
           <StatCard
             color="purple"
-            label="الرصيد الفعلي الحالي بالخزنة"
-            value={`${data.cash.balance.toLocaleString()} ج.م`}
+            label="إجمالي المشتريات"
+            value={`${totalPurchases.toLocaleString()} ج.م`}
           />
         </div>
       </SectionCard>

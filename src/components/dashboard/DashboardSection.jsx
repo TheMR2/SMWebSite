@@ -10,6 +10,7 @@ export default function DashboardSection() {
     data,
     setActiveSection,
     setSelectedWarehouseId,
+    canAccessSection,
     getCompanyName
   } = useERP();
 
@@ -76,35 +77,43 @@ export default function DashboardSection() {
         <div className="text-sm font-bold text-[#1a237e]">
           ⚡ إجراءات سريعة (تسمّع تلقائياً في المخازن والخزنة والعملاء):
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setActiveSection('sales-invoice')}
-            className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <FilePlus2 className="w-4 h-4" />
-            <span>فاتورة مبيعات جديدة</span>
-          </button>
-          <button
-            onClick={() => setActiveSection('payment-invoice')}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <Wallet className="w-4 h-4" />
-            <span>سند تحصيل من عميل</span>
-          </button>
-          <button
-            onClick={() => setActiveSection('transfer-invoice')}
-            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            <span>توريد نقدية للخزنة</span>
-          </button>
-          <button
-            onClick={() => setActiveSection('customers-list')}
-            className="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <Users className="w-4 h-4" />
-            <span>حسابات العملاء</span>
-          </button>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {canAccessSection('sales-invoice') && (
+            <button
+              onClick={() => setActiveSection('sales-invoice')}
+              className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <FilePlus2 className="w-4 h-4" />
+              <span>فاتورة مبيعات جديدة</span>
+            </button>
+          )}
+          {canAccessSection('payment-invoice') && (
+            <button
+              onClick={() => setActiveSection('payment-invoice')}
+              className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Wallet className="w-4 h-4" />
+              <span>سند تحصيل من عميل</span>
+            </button>
+          )}
+          {canAccessSection('transfer-invoice') && (
+            <button
+              onClick={() => setActiveSection('transfer-invoice')}
+              className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              <span>توريد نقدية للخزنة</span>
+            </button>
+          )}
+          {canAccessSection('customers-list') && (
+            <button
+              onClick={() => setActiveSection('customers-list')}
+              className="flex-1 sm:flex-none justify-center px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Users className="w-4 h-4" />
+              <span>حسابات العملاء</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -117,9 +126,9 @@ export default function DashboardSection() {
             <select
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
-              className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50"
+              className="w-full sm:w-auto px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50"
             >
-              <option value="all">جميع الشركات المنتجة (3 شركات)</option>
+              <option value="all">جميع الشركات المنتجة ({data.companies.length} شركات)</option>
               {data.companies.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

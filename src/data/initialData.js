@@ -1,3 +1,15 @@
+export const PAYMENT_METHODS = {
+  cash: 'نقداً (كاش)',
+  vodafone_cash: 'فودافون كاش',
+  instapay: 'إنستا باي'
+};
+
+export const EXPENSE_PAYMENT_TYPES = {
+  cash: 'كاش',
+  vodafone_cash: 'فودافون كاش',
+  instapay: 'إنستا باي'
+};
+
 export const ROLE_PERMISSIONS = {
   'admin': {
     label: 'مدير النظام',
@@ -8,15 +20,23 @@ export const ROLE_PERMISSIONS = {
     label: 'مشرف المبيعات',
     badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     allowedSections: [
-      'dashboard', 'sales-reps', 'rep-report', 'customers-list', 'customer-account',
-      'sales-invoice', 'return-invoice', 'payment-invoice', 'price-lists', 'products', 'sales-manager', 'sales-reps-users'
+      'dashboard',
+      'warehouse-overview', 'warehouse-detail', 'warehouse-movements',
+      'companies-list', 'company-accounts',
+      'sales-reps', 'rep-report',
+      'customers-list', 'customer-account',
+      'invoices-log',
+      'price-lists', 'products'
     ]
   },
   'sales-rep': {
     label: 'مندوب مبيعات',
     badgeClass: 'bg-teal-100 text-teal-800 border-teal-200',
     allowedSections: [
-      'dashboard', 'customers-list', 'customer-account', 'sales-invoice', 'return-invoice', 'payment-invoice', 'price-lists'
+      'dashboard',
+      'customers-list', 'customer-account',
+      'sales-invoice', 'return-invoice', 'transfer-invoice', 'rep-custody-invoice', 'invoices-log',
+      'price-lists'
     ]
   },
   'accountant': {
@@ -26,7 +46,7 @@ export const ROLE_PERMISSIONS = {
       'dashboard',
       'cash-balance', 'cash-operations',
       'warehouse-overview', 'warehouse-detail', 'warehouse-movements',
-      'sales-invoice', 'return-invoice', 'payment-invoice', 'transfer-invoice', 'invoices-log',
+      'sales-invoice', 'return-invoice', 'payment-invoice', 'transfer-invoice', 'rep-custody-invoice', 'invoices-log',
       'customers-list', 'customer-account',
       'sales-reps', 'rep-report',
       'purchase-prices', 'purchase-returns',
@@ -45,26 +65,21 @@ export function createInitialData() {
     { id: 3, name: 'شركة البركة للأغذية', address: 'الإسكندرية - برج العرب', phone: '01055555555', totalPurchases: 1800000, paidToCompany: 1700000 }
   ];
 
-  const warehouses = [];
-  for (let i = 1; i <= 3; i++) {
-    for (let j = 1; j <= 8; j++) {
-      warehouses.push({
-        id: warehouses.length + 1,
-        name: `مخزن ${j} - شركة ${i}`,
-        companyId: i,
-        openingBalance: 10000 * j,
-        goodsValue: 50000 * j,
-        cash: 5000 * j,
-        repGoods: 2000 * j,
-        repCash: 1000 * j
-      });
-    }
-  }
+  const warehouses = companies.map((company, idx) => ({
+    id: company.id,
+    name: `مخزن ${company.name}`,
+    companyId: company.id,
+    openingBalance: 100000 * (idx + 1),
+    goodsValue: 500000 * (idx + 1),
+    cash: 25000 * (idx + 1),
+    repGoods: 10000 * (idx + 1),
+    repCash: 5000 * (idx + 1)
+  }));
 
   const salesReps = [
     { id: 1, name: 'مندوب جملة 1 (أحمد محمود)', type: 'wholesale', phone: '01011223344', warehouseId: 1, totalSales: 15000, repGoods: 5000, repCash: 2000 },
     { id: 2, name: 'مندوب تجزئة 1 (محمد سعيد)', type: 'retail', phone: '01055667788', warehouseId: 2, totalSales: 8000, repGoods: 3000, repCash: 1500 },
-    { id: 3, name: 'مندوب جملة 2 (إبراهيم حسن)', type: 'wholesale', phone: '01099887766', warehouseId: 9, totalSales: 0, repGoods: 4000, repCash: 1000 }
+    { id: 3, name: 'مندوب جملة 2 (إبراهيم حسن)', type: 'wholesale', phone: '01099887766', warehouseId: 3, totalSales: 0, repGoods: 4000, repCash: 1000 }
   ];
 
   const customers = [
@@ -162,7 +177,7 @@ export function createInitialData() {
       date: '2026-11-02',
       customerId: 2,
       repId: 2,
-      warehouseId: 2,
+      warehouseId: 1,
       companyId: 1,
       paymentType: 'cash',
       paymentMethod: 'cash',
@@ -187,11 +202,11 @@ export function createInitialData() {
 
   const warehouseMovements = [
     { id: 1, date: '2026-11-01', warehouseId: 1, type: 'صرف مبيعات', refNumber: 'INV-1001', description: 'صرف بضاعة لفاتورة عميل جملة 1', qty: 40, value: 13158 },
-    { id: 2, date: '2026-11-02', warehouseId: 2, type: 'صرف مبيعات', refNumber: 'INV-1002', description: 'صرف بضاعة لفاتورة عميل تجزئة 1 (كاش)', qty: 25, value: 7018 }
+    { id: 2, date: '2026-11-02', warehouseId: 1, type: 'صرف مبيعات', refNumber: 'INV-1002', description: 'صرف بضاعة لفاتورة عميل تجزئة 1 (كاش)', qty: 25, value: 7018 }
   ];
 
   const expenses = [
-    { id: 1, date: '2026-11-02', type: 'general', description: 'مصروفات عامة ونثريات المقر', amount: 5000 }
+    { id: 1, date: '2026-11-02', type: 'cash', description: 'مصروفات عامة ونثريات المقر', amount: 5000 }
   ];
 
   const companyReturns = [
@@ -211,8 +226,10 @@ export function createInitialData() {
   const users = [
     { id: 1, username: 'admin', password: '1234', name: 'المدير العام', role: 'admin', status: 'active' },
     { id: 2, username: 'sales-manager', password: '1234', name: 'مشرف المبيعات', role: 'sales-manager', status: 'active' },
-    { id: 3, username: 'rep1', password: '1234', name: 'مندوب مبيعات 1', role: 'sales-rep', status: 'active' },
-    { id: 4, username: 'accountant', password: '1234', name: 'المحاسب', role: 'accountant', status: 'active' }
+    { id: 3, username: 'rep1', password: '1234', name: 'أحمد محمود (مندوب جملة)', role: 'sales-rep', repId: 1, repType: 'wholesale', status: 'active' },
+    { id: 4, username: 'accountant', password: '1234', name: 'المحاسب', role: 'accountant', status: 'active' },
+    { id: 5, username: 'rep2', password: '1234', name: 'محمد سعيد (مندوب تجزئة)', role: 'sales-rep', repId: 2, repType: 'retail', status: 'active' },
+    { id: 6, username: 'rep3', password: '1234', name: 'إبراهيم حسن (مندوب جملة)', role: 'sales-rep', repId: 3, repType: 'wholesale', status: 'active' }
   ];
 
   return {

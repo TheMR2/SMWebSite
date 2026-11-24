@@ -5,7 +5,7 @@ import { EXPENSE_TYPES } from './ExpensesListSection';
 
 export default function AddExpenseSection() {
   const { data, setActiveSection, addExpense } = useERP();
-  const [expenseType, setExpenseType] = useState('general');
+  const [expenseType, setExpenseType] = useState('cash');
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [expenseDesc, setExpenseDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -43,7 +43,7 @@ export default function AddExpenseSection() {
         <form onSubmit={handleSaveExpense} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">بند المصروف:</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">نوع المصروف (طريقة الدفع):</label>
               <select
                 value={expenseType}
                 onChange={(e) => setExpenseType(e.target.value)}

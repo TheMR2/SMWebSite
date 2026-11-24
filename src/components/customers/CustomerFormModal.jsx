@@ -60,7 +60,7 @@ export default function CustomerFormModal({ isOpen, onClose, initialData }) {
             className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">نوع العميل:</label>
             <select
@@ -85,7 +85,7 @@ export default function CustomerFormModal({ isOpen, onClose, initialData }) {
             </select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">الحد الائتماني الشهري:</label>
             <input
@@ -105,7 +105,7 @@ export default function CustomerFormModal({ isOpen, onClose, initialData }) {
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">العنوان:</label>
             <input

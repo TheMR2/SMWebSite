@@ -2,32 +2,45 @@ import React from 'react';
 import { useERP } from '../../context/ERPContext';
 import StatCard from '../ui/StatCard';
 import SectionCard from '../ui/SectionCard';
-import { FileText, Wallet } from 'lucide-react';
 
 export default function CustomerAccountSection() {
   const {
     data,
-    setActiveSection,
     selectedCustomerId,
-    setSelectedCustomerId,
-    getRepName
+    setSelectedCustomerId
   } = useERP();
 
   const cust = data.customers.find(c => c.id === Number(selectedCustomerId)) || data.customers[0];
   const ledger = data.customerLedger.filter(l => l.customerId === cust?.id);
 
+  const now = new Date();
+  const currentYear = String(now.getFullYear());
+  const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const custSalesInvoices = data.invoices.filter(
+    inv => inv.type === 'sales' && Number(inv.customerId) === Number(cust?.id)
+  );
+
+  const totalPurchases = custSalesInvoices.reduce((s, inv) => s + Number(inv.total || 0), 0);
+  const monthlyPurchases = custSalesInvoices
+    .filter(inv => typeof inv.date === 'string' && inv.date.startsWith(currentMonth))
+    .reduce((s, inv) => s + Number(inv.total || 0), 0);
+  const annualPurchases = custSalesInvoices
+    .filter(inv => typeof inv.date === 'string' && inv.date.startsWith(currentYear))
+    .reduce((s, inv) => s + Number(inv.total || 0), 0);
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <SectionCard
         title="📑 كشف حساب عميل تفصيلي"
-        subtitle="متابعة المديونية والائتمان وسجل الفواتير والمرتجعات والسدادات"
+        subtitle="متابعة المديونية والمشتريات وسجل الفواتير والمرتجعات والسدادات"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <label className="text-xs font-bold text-slate-700">اختر العميل:</label>
             <select
               value={cust?.id || ''}
               onChange={(e) => setSelectedCustomerId(Number(e.target.value))}
-              className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+              className="w-full sm:w-auto max-w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
             >
               {data.customers.map(c => (
                 <option key={c.id} value={c.id}>
@@ -40,24 +53,30 @@ export default function CustomerAccountSection() {
       >
         {cust && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard
                 color="orange"
                 label="الرصيد الحالي (مديونية العميل)"
                 value={`${cust.currentBalance.toLocaleString()} ج.م`}
-                subtitle={`المندوب المسؤول: ${getRepName(cust.repId)}`}
+                subtitle={`الهاتف: ${cust.phone || 'غير مسجل'}`}
+              />
+              <StatCard
+                color="purple"
+                label="إجمالي مشترياته"
+                value={`${totalPurchases.toLocaleString()} ج.م`}
+                subtitle={`عدد الفواتير: ${custSalesInvoices.length}`}
               />
               <StatCard
                 color="green"
-                label="الحد الائتماني الشهري"
-                value={`${cust.monthlyLimit.toLocaleString()} ج.م`}
-                subtitle={`المتاح شهرياً: ${Math.max(0, cust.monthlyLimit - cust.currentBalance).toLocaleString()} ج.م`}
+                label="مشترياته الشهرية"
+                value={`${monthlyPurchases.toLocaleString()} ج.م`}
+                subtitle={`شهر ${currentMonth}`}
               />
               <StatCard
                 color="blue"
-                label="الحد الائتماني السنوي"
-                value={`${cust.annualLimit.toLocaleString()} ج.م`}
-                subtitle={`الهاتف: ${cust.phone || 'غير مسجل'} | ${cust.address || ''}`}
+                label="مشترياته السنوية"
+                value={`${annualPurchases.toLocaleString()} ج.م`}
+                subtitle={`سنة ${currentYear} | ${cust.address || ''}`}
               />
             </div>
 
@@ -65,22 +84,6 @@ export default function CustomerAccountSection() {
               <h3 className="text-base font-extrabold text-[#1a237e]">
                 سجل العمليات وكشف الحساب لـ ({cust.name})
               </h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveSection('payment-invoice')}
-                  className="px-3.5 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer"
-                >
-                  <Wallet className="w-3.5 h-3.5" />
-                  <span>تسجيل سداد من العميل</span>
-                </button>
-                <button
-                  onClick={() => setActiveSection('sales-invoice')}
-                  className="px-3.5 py-1.5 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>فاتورة مبيعات جديدة</span>
-                </button>
-              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -88,8 +91,7 @@ export default function CustomerAccountSection() {
                 <thead className="bg-slate-100 text-xs font-bold text-slate-700">
                   <tr>
                     <th className="p-3">التاريخ</th>
-                    <th className="p-3">رقم المرجع</th>
-                    <th className="p-3">نوع العملية</th>
+                    <th className="p-3">الرقم المرجعي للفاتورة</th>
                     <th className="p-3">البيان / الملاحظات</th>
                     <th className="p-3">مدين (عليه)</th>
                     <th className="p-3">دائن (له / سداد)</th>
@@ -99,7 +101,7 @@ export default function CustomerAccountSection() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {ledger.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="p-6 text-center text-slate-400">
+                      <td colSpan="6" className="p-6 text-center text-slate-400">
                         لا توجد حركات مسجلة لهذا العميل
                       </td>
                     </tr>
@@ -108,8 +110,7 @@ export default function CustomerAccountSection() {
                       <tr key={row.id} className="hover:bg-slate-50">
                         <td className="p-3 font-mono text-xs">{row.date}</td>
                         <td className="p-3 font-mono text-xs font-bold text-indigo-700">{row.refNumber}</td>
-                        <td className="p-3 font-bold text-slate-800">{row.type}</td>
-                        <td className="p-3 text-xs text-slate-600">{row.notes}</td>
+                        <td className="p-3 text-xs text-slate-700 font-medium">{row.notes}</td>
                         <td className="p-3 font-bold text-rose-700">
                           {row.debit > 0 ? `${row.debit.toLocaleString()} ج.م` : '-'}
                         </td>

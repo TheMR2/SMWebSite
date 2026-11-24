@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createInitialData, ROLE_PERMISSIONS } from '../data/initialData';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { createInitialData, ROLE_PERMISSIONS, PAYMENT_METHODS, EXPENSE_PAYMENT_TYPES } from '../data/initialData';
 
 const ERPContext = createContext(null);
 const STORAGE_KEY = 'alsafa_erp_state_v1';
@@ -11,38 +11,116 @@ const LEGACY_ACCOUNTANT_USERNAMES = new Set([
   'acc-expenses'
 ]);
 
-function migrateLegacyUsers(parsed) {
-  if (!parsed || !Array.isArray(parsed.users)) return parsed;
+function migrateLegacyState(parsed) {
+  if (!parsed) return parsed;
+  let updated = { ...parsed };
 
-  const hasLegacy = parsed.users.some(
-    u => LEGACY_ACCOUNTANT_USERNAMES.has(u.username) || (typeof u.role === 'string' && u.role.startsWith('accounting-'))
-  );
-  if (!hasLegacy) return parsed;
+  // 1. Migrate legacy accountant users & link sales reps
+  if (Array.isArray(updated.users)) {
+    let users = updated.users
+      .filter(u => !LEGACY_ACCOUNTANT_USERNAMES.has(u.username))
+      .map(u => {
+        let next = typeof u.role === 'string' && u.role.startsWith('accounting-')
+          ? { ...u, role: 'accountant' }
+          : { ...u };
+        if (next.username === 'rep1' && !next.repId) {
+          next = { ...next, repId: 1, repType: 'wholesale' };
+        }
+        return next;
+      });
 
-  const users = parsed.users
-    .filter(u => !LEGACY_ACCOUNTANT_USERNAMES.has(u.username))
-    .map(u =>
-      typeof u.role === 'string' && u.role.startsWith('accounting-')
-        ? { ...u, role: 'accountant' }
-        : u
-    );
-
-  const hasDefaultAccountant = users.some(u => u.username === 'accountant');
-  if (!hasDefaultAccountant) {
-    const id = users.some(u => u.id === 4)
-      ? Math.max(0, ...users.map(u => Number(u.id) || 0)) + 1
-      : 4;
-    users.push({
-      id,
-      username: 'accountant',
-      password: '1234',
-      name: 'المحاسب',
-      role: 'accountant',
-      status: 'active'
-    });
+    if (!users.some(u => u.username === 'accountant')) {
+      const id = Math.max(0, ...users.map(u => Number(u.id) || 0)) + 1;
+      users.push({ id, username: 'accountant', password: '1234', name: 'المحاسب', role: 'accountant', status: 'active' });
+    }
+    if (!users.some(u => u.username === 'rep2')) {
+      const id = Math.max(0, ...users.map(u => Number(u.id) || 0)) + 1;
+      users.push({ id, username: 'rep2', password: '1234', name: 'محمد سعيد (مندوب تجزئة)', role: 'sales-rep', repId: 2, repType: 'retail', status: 'active' });
+    }
+    updated.users = users;
   }
 
-  return { ...parsed, users };
+  // 2. Enforce 1 warehouse per company (consolidate legacy multi-warehouse state & remap references)
+  if (Array.isArray(updated.warehouses) && Array.isArray(updated.companies)) {
+    const idRemap = new Map();
+    const consolidatedWarehouses = [];
+    let nextWarehouseId = updated.warehouses.reduce((max, w) => Math.max(max, Number(w.id) || 0), 0) + 1;
+
+    updated.companies.forEach((comp) => {
+      const compWarehouses = updated.warehouses.filter(w => Number(w.companyId) === Number(comp.id));
+      if (compWarehouses.length === 0) {
+        consolidatedWarehouses.push({
+          id: nextWarehouseId++,
+          name: `مخزن ${comp.name}`,
+          companyId: comp.id,
+          openingBalance: 0,
+          goodsValue: 0,
+          cash: 0,
+          repGoods: 0,
+          repCash: 0
+        });
+      } else {
+        const primary = compWarehouses[0];
+        const isLegacyName = typeof primary.name === 'string' && (
+          /^مخزن \d+ - شركة \d+$/.test(primary.name.trim()) ||
+          primary.name.trim() === `${comp.name} - مخزن 1` ||
+          /\s-\sمخزن\s\d+$/.test(primary.name.trim())
+        );
+
+        const merged = compWarehouses.length === 1
+          ? {
+              ...primary,
+              name: isLegacyName ? `مخزن ${comp.name}` : primary.name
+            }
+          : {
+              ...primary,
+              name: `مخزن ${comp.name}`,
+              openingBalance: compWarehouses.reduce((s, w) => s + Number(w.openingBalance || 0), 0),
+              goodsValue: compWarehouses.reduce((s, w) => s + Number(w.goodsValue || 0), 0),
+              cash: compWarehouses.reduce((s, w) => s + Number(w.cash || 0), 0),
+              repGoods: compWarehouses.reduce((s, w) => s + Number(w.repGoods || 0), 0),
+              repCash: compWarehouses.reduce((s, w) => s + Number(w.repCash || 0), 0)
+            };
+
+        consolidatedWarehouses.push(merged);
+        compWarehouses.forEach(w => idRemap.set(Number(w.id), merged.id));
+      }
+    });
+
+    updated.warehouses = consolidatedWarehouses;
+    const validIds = new Set(consolidatedWarehouses.map(w => w.id));
+    const fallbackWarehouseId = consolidatedWarehouses[0]?.id || 1;
+    const resolveWarehouseId = (wId) => {
+      if (wId === null || wId === undefined) return wId;
+      const numId = Number(wId);
+      if (idRemap.has(numId)) return idRemap.get(numId);
+      return validIds.has(numId) ? numId : fallbackWarehouseId;
+    };
+
+    if (Array.isArray(updated.salesReps)) {
+      updated.salesReps = updated.salesReps.map(r => ({
+        ...r,
+        warehouseId: resolveWarehouseId(r.warehouseId)
+      }));
+    }
+    if (Array.isArray(updated.invoices)) {
+      updated.invoices = updated.invoices.map(inv =>
+        inv.warehouseId != null ? { ...inv, warehouseId: resolveWarehouseId(inv.warehouseId) } : inv
+      );
+    }
+    if (Array.isArray(updated.warehouseMovements)) {
+      updated.warehouseMovements = updated.warehouseMovements.map(m =>
+        m.warehouseId != null ? { ...m, warehouseId: resolveWarehouseId(m.warehouseId) } : m
+      );
+    }
+    if (Array.isArray(updated.companyReturns)) {
+      updated.companyReturns = updated.companyReturns.map(ret =>
+        ret.warehouseId != null ? { ...ret, warehouseId: resolveWarehouseId(ret.warehouseId) } : ret
+      );
+    }
+  }
+
+  return updated;
 }
 
 export function ERPProvider({ children }) {
@@ -50,7 +128,7 @@ export function ERPProvider({ children }) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return migrateLegacyUsers(JSON.parse(saved));
+        return migrateLegacyState(JSON.parse(saved));
       }
     } catch (e) {
       console.error('Failed to load state from localStorage:', e);
@@ -59,11 +137,46 @@ export function ERPProvider({ children }) {
   });
 
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSectionState] = useState('dashboard');
+  const [sectionHistory, setSectionHistory] = useState([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState(1);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(1);
   const [selectedRepId, setSelectedRepId] = useState(1);
   const [notifications, setNotifications] = useState([]);
+
+  const setActiveSection = (nextSection) => {
+    setActiveSectionState(prev => {
+      if (prev && prev !== nextSection) {
+        setSectionHistory(hist => [...hist.slice(-19), prev]);
+      }
+      return nextSection;
+    });
+  };
+
+  const goBack = () => {
+    setSectionHistory(hist => {
+      if (hist.length > 0) {
+        const previous = hist[hist.length - 1];
+        setActiveSectionState(previous);
+        return hist.slice(0, -1);
+      }
+      if (activeSection !== 'dashboard') {
+        setActiveSectionState('dashboard');
+      }
+      return hist;
+    });
+  };
+
+  const canGoBack = sectionHistory.length > 0 || activeSection !== 'dashboard';
+
+  const currentRep = useMemo(() => {
+    if (!currentUser || currentUser.role !== 'sales-rep') return null;
+    if (currentUser.repId) {
+      const found = data.salesReps.find(r => r.id === Number(currentUser.repId));
+      if (found) return found;
+    }
+    return data.salesReps.find(r => r.type === currentUser.repType) || data.salesReps[0] || null;
+  }, [currentUser, data.salesReps]);
 
   useEffect(() => {
     try {
@@ -97,14 +210,16 @@ export function ERPProvider({ children }) {
       return { ok: false, error: 'هذا الحساب غير نشط حالياً، يرجى مراجعة المدير' };
     }
     setCurrentUser(found);
-    setActiveSection('dashboard');
+    setSectionHistory([]);
+    setActiveSectionState('dashboard');
     notify(`مرحباً بك يا ${found.name} في نظام شركة الصفا والمروة`, 'info');
     return { ok: true };
   };
 
   const logout = () => {
     setCurrentUser(null);
-    setActiveSection('dashboard');
+    setSectionHistory([]);
+    setActiveSectionState('dashboard');
   };
 
   const canAccessSection = (sectionId) => {
@@ -143,6 +258,13 @@ export function ERPProvider({ children }) {
   const getProductName = (productId) => {
     const p = data.products.find(x => x.id === Number(productId));
     return p ? p.name : 'غير معروف';
+  };
+
+  const getPaymentMethodLabel = (method) => {
+    if (PAYMENT_METHODS[method]) return PAYMENT_METHODS[method];
+    if (method === 'bank') return 'إيداع بنكي';
+    if (method === 'check') return 'شيك';
+    return 'نقداً (كاش)';
   };
 
   // 1. INTERCONNECTED SALES INVOICE (فاتورة مبيعات تسمّع في المخزن، العميل، المندوب، والخزنة)
@@ -223,7 +345,7 @@ export function ERPProvider({ children }) {
       if (paymentType === 'credit') {
         effects.push(`إضافة مديونية ${grandTotal.toLocaleString()} ج.م على حساب (${getCustomerName(custId)})`);
       } else {
-        effects.push(`فاتورة مسددة بالكامل (${paymentMethod === 'cash' ? 'نقداً' : paymentMethod === 'bank' ? 'إيداع بنكي' : 'بشيك'})`);
+        effects.push(`فاتورة مسددة بالكامل (${getPaymentMethodLabel(paymentMethod)})`);
       }
 
       const customerLedger = [
@@ -282,15 +404,18 @@ export function ERPProvider({ children }) {
         effects.push(`إضافة ${grandTotal.toLocaleString()} ج.م إلى عهدة نقدية المندوب (${getRepName(rId)})`);
       }
 
-      // F. Save Invoice
+      // F. Save Invoice (immutable snapshot of items, prices, and names so old invoices are never affected)
       const newInvoice = {
         id: prev.invoices.length + 1,
         type: 'sales',
         number: invNumber,
         date: invDate,
         customerId: custId,
+        customerName: getCustomerName(custId),
         repId: rId,
+        repName: rId ? getRepName(rId) : 'غير محدد',
         warehouseId: wId,
+        warehouseName: getWarehouseName(wId),
         companyId,
         paymentType,
         paymentMethod,
@@ -301,7 +426,7 @@ export function ERPProvider({ children }) {
         taxAmount: Number(taxAmount),
         total: grandTotal,
         paymentStatus: paymentType === 'cash' ? 'paid' : 'unpaid',
-        items
+        items: items.map(item => ({ ...item }))
       };
 
       return {
@@ -437,20 +562,24 @@ export function ERPProvider({ children }) {
         effects.push(`صرف ${returnTotal.toLocaleString()} ج.م نقداً من الخزنة للعميل`);
       }
 
-      // F. Save Return Invoice
+      // F. Save Return Invoice (immutable snapshot)
       const newInvoice = {
         id: prev.invoices.length + 1,
         type: 'return',
         number: retNumber,
         date: retDate,
         customerId: custId,
+        customerName: getCustomerName(custId),
         repId: rId,
+        repName: rId ? getRepName(rId) : 'غير محدد',
         warehouseId: wId,
+        warehouseName: getWarehouseName(wId),
+        receivedBy: rId ? `المندوب: ${getRepName(rId)}` : 'المندوب',
         returnReason,
-        settlementType,
+        settlementType: settlementType || 'deduct_balance',
         total: returnTotal,
         paymentStatus: 'paid',
-        items
+        items: items.map(item => ({ ...item }))
       };
 
       return {
@@ -499,7 +628,7 @@ export function ERPProvider({ children }) {
       });
       effects.push(`تنزيل ${payAmount.toLocaleString()} ج.م من مديونية العميل (${getCustomerName(custId)})`);
 
-      const methodLabel = paymentMethod === 'cash' ? 'نقداً' : paymentMethod === 'bank' ? 'إيداع بنكي' : 'بشيك';
+      const methodLabel = getPaymentMethodLabel(paymentMethod);
 
       const customerLedger = [
         {
@@ -576,13 +705,14 @@ export function ERPProvider({ children }) {
     notify(`تم تسجيل سند السداد (${refNumber}) وتحديث الأرصدة تلقائياً!`, 'success', effects);
   };
 
-  // 4. INTERCONNECTED TRANSFER INVOICE (فاتورة توريد نقدية من مخزن أو مندوب إلى الخزنة الرئيسية)
+  // 4. INTERCONNECTED TRANSFER INVOICE (فاتورة توريد نقدية من مندوب أو مخزن إلى الخزنة الرئيسية)
   const createTransferInvoice = (payload) => {
     const {
-      sourceType, // 'warehouse' | 'rep'
+      sourceType = 'rep', // 'warehouse' | 'rep'
       warehouseId,
       repId,
       amount,
+      paymentMethod = 'cash',
       date,
       notes
     } = payload;
@@ -590,6 +720,7 @@ export function ERPProvider({ children }) {
     const transferAmount = Number(amount);
     const transDate = date || new Date().toISOString().split('T')[0];
     const refNumber = `TRN-${300 + data.cash.transactions.length + 1}`;
+    const methodLabel = getPaymentMethodLabel(paymentMethod);
     const effects = [];
 
     setData(prev => {
@@ -615,7 +746,7 @@ export function ERPProvider({ children }) {
             warehouseId: wId,
             type: 'توريد نقدية للخزنة',
             refNumber,
-            description: notes || `توريد نقدية من ${sourceDesc} إلى الخزنة الرئيسية`,
+            description: notes || `توريد نقدية (${methodLabel}) من ${sourceDesc} إلى الخزنة الرئيسية`,
             qty: 0,
             value: transferAmount
           },
@@ -632,7 +763,6 @@ export function ERPProvider({ children }) {
             repCash: Math.max(0, r.repCash - transferAmount)
           };
         });
-        // Also reduce repCash on the rep's linked warehouse if applicable
         const repObj = prev.salesReps.find(r => r.id === rId);
         if (repObj && repObj.warehouseId) {
           warehouses = warehouses.map(w =>
@@ -655,24 +785,203 @@ export function ERPProvider({ children }) {
             date: transDate,
             type: 'incoming',
             category: 'transfer',
-            description: `فاتورة توريد (${refNumber}) من ${sourceDesc} ${notes ? `- ${notes}` : ''}`,
+            paymentMethod,
+            description: `فاتورة توريد (${refNumber}) من ${sourceDesc} (${methodLabel}) ${notes ? `- ${notes}` : ''}`,
             amount: transferAmount,
             balance: newBalance
           }
         ]
       };
-      effects.push(`إيداع ${transferAmount.toLocaleString()} ج.م في الخزنة الرئيسية`);
+      effects.push(`إيداع ${transferAmount.toLocaleString()} ج.م (${methodLabel}) في الخزنة الرئيسية`);
+
+      const newInvoice = {
+        id: prev.invoices.length + 1,
+        type: 'transfer',
+        number: refNumber,
+        date: transDate,
+        repId: sourceType === 'rep' ? Number(repId) : null,
+        repName: sourceType === 'rep' ? getRepName(repId) : '-',
+        warehouseId: sourceType === 'warehouse' ? Number(warehouseId) : null,
+        warehouseName: sourceType === 'warehouse' ? getWarehouseName(warehouseId) : '-',
+        paymentMethod,
+        total: transferAmount,
+        paymentStatus: 'paid',
+        notes: notes || ''
+      };
 
       return {
         ...prev,
         warehouses,
         salesReps,
         warehouseMovements,
-        cash
+        cash,
+        invoices: [newInvoice, ...prev.invoices]
       };
     });
 
     notify(`تم حفظ فاتورة التوريد (${refNumber}) بنجاح!`, 'success', effects);
+  };
+
+  // 5B. REP CUSTODY INVOICE (فاتورة مندوب / تسليم عهدة بالسيارة)
+  const createRepCustodyInvoice = (payload) => {
+    const {
+      number,
+      date,
+      repId,
+      warehouseId,
+      vehicleName,
+      vehicleNumber,
+      items,
+      total,
+      notes
+    } = payload;
+
+    const rId = Number(repId);
+    const wId = Number(warehouseId);
+    const val = Number(total);
+    const totalQty = items.reduce((s, item) => s + Number(item.qty || 0), 0);
+    const invNumber = number || `CST-${400 + data.invoices.length + 1}`;
+    const invDate = date || new Date().toISOString().split('T')[0];
+    const effects = [];
+
+    setData(prev => {
+      const warehouses = prev.warehouses.map(w => {
+        if (w.id !== wId) return w;
+        return {
+          ...w,
+          goodsValue: Math.max(0, w.goodsValue - val),
+          repGoods: w.repGoods + val
+        };
+      });
+      effects.push(`صرف بضاعة عهدة بقيمة ${val.toLocaleString()} ج.م من (${getWarehouseName(wId)})`);
+
+      const salesReps = prev.salesReps.map(r => {
+        if (r.id !== rId) return r;
+        return {
+          ...r,
+          repGoods: r.repGoods + val,
+          vehicleName: vehicleName || r.vehicleName || '',
+          vehicleNumber: vehicleNumber || r.vehicleNumber || ''
+        };
+      });
+      effects.push(`إضافة العهدة إلى المندوب (${getRepName(rId)}) - سيارة: ${vehicleName} (${vehicleNumber})`);
+
+      const warehouseMovements = [
+        {
+          id: prev.warehouseMovements.length + 1,
+          date: invDate,
+          warehouseId: wId,
+          type: 'صادر عهدة مندوب',
+          refNumber: invNumber,
+          description: `فاتورة مندوب (${getRepName(rId)}) - سيارة: ${vehicleName || '-'} (${vehicleNumber || '-'})${notes ? ` - ${notes}` : ''}`,
+          qty: totalQty,
+          value: val
+        },
+        ...prev.warehouseMovements
+      ];
+
+      const newInvoice = {
+        id: prev.invoices.length + 1,
+        type: 'custody',
+        number: invNumber,
+        date: invDate,
+        repId: rId,
+        repName: getRepName(rId),
+        warehouseId: wId,
+        warehouseName: getWarehouseName(wId),
+        vehicleName: vehicleName || '',
+        vehicleNumber: vehicleNumber || '',
+        total: val,
+        paymentStatus: 'paid',
+        notes: notes || '',
+        items: items.map(item => ({ ...item }))
+      };
+
+      return {
+        ...prev,
+        warehouses,
+        salesReps,
+        warehouseMovements,
+        invoices: [newInvoice, ...prev.invoices]
+      };
+    });
+
+    notify(`تم حفظ فاتورة عهدة المندوب (${invNumber}) بنجاح!`, 'success', effects);
+    return invNumber;
+  };
+
+  // 5C. MANUAL WAREHOUSE MOVEMENT (صادر فقط) & EDIT MOVEMENT
+  const addWarehouseMovement = ({ warehouseId, date, description, qty, value, refNumber }) => {
+    const wId = Number(warehouseId);
+    const val = Number(value || 0);
+    const q = Number(qty || 1);
+    const moveDate = date || new Date().toISOString().split('T')[0];
+    const ref = refNumber?.trim() || `OUT-${Date.now().toString().slice(-4)}`;
+
+    setData(prev => {
+      const warehouses = prev.warehouses.map(w =>
+        w.id === wId ? { ...w, goodsValue: Math.max(0, w.goodsValue - val) } : w
+      );
+      const newMovement = {
+        id: prev.warehouseMovements.length ? Math.max(...prev.warehouseMovements.map(m => Number(m.id) || 0)) + 1 : 1,
+        date: moveDate,
+        warehouseId: wId,
+        type: 'صادر',
+        refNumber: ref,
+        description: description || 'عملية صادر مخزن',
+        qty: q,
+        value: val
+      };
+      return {
+        ...prev,
+        warehouses,
+        warehouseMovements: [newMovement, ...prev.warehouseMovements]
+      };
+    });
+    notify(`تم تسجيل عملية صادر مخزن (${ref}) بنجاح`, 'success');
+  };
+
+  const updateWarehouseMovement = (movementId, updates) => {
+    setData(prev => {
+      const existing = prev.warehouseMovements.find(m => m.id === movementId);
+      if (!existing) return prev;
+
+      const oldVal = Number(existing.value || 0);
+      const newVal = Number(updates.value ?? oldVal);
+      const valDiff = newVal - oldVal;
+      const oldWId = Number(existing.warehouseId);
+      const newWId = Number(updates.warehouseId ?? oldWId);
+
+      const warehouses = prev.warehouses.map(w => {
+        if (oldWId === newWId && w.id === oldWId) {
+          return { ...w, goodsValue: Math.max(0, w.goodsValue - valDiff) };
+        }
+        if (w.id === oldWId) {
+          return { ...w, goodsValue: w.goodsValue + oldVal };
+        }
+        if (w.id === newWId) {
+          return { ...w, goodsValue: Math.max(0, w.goodsValue - newVal) };
+        }
+        return w;
+      });
+
+      const warehouseMovements = prev.warehouseMovements.map(m =>
+        m.id === movementId
+          ? {
+              ...m,
+              date: updates.date ?? m.date,
+              warehouseId: newWId,
+              refNumber: updates.refNumber ?? m.refNumber,
+              description: updates.description ?? m.description,
+              qty: Number(updates.qty ?? m.qty),
+              value: newVal
+            }
+          : m
+      );
+
+      return { ...prev, warehouses, warehouseMovements };
+    });
+    notify('تم تعديل سجل حركة المخزن بنجاح', 'success');
   };
 
   // 5. REP CUSTODY DISPATCH (تحميل بضاعة من مخزن لعهدة مندوب)
@@ -755,14 +1064,7 @@ export function ERPProvider({ children }) {
     const val = Number(amount);
     const expDate = date || new Date().toISOString().split('T')[0];
 
-    const typeNames = {
-      'general': 'مصروفات عامة',
-      'salary': 'مرتبات وأجور',
-      'bank-deposit': 'إيداع بنكي',
-      'cash-box': 'كاش بوكس',
-      'rep-commission': 'عمولة مناديب',
-      'agent-commission': 'عمولة وكيل'
-    };
+    const paymentTypeLabel = EXPENSE_PAYMENT_TYPES[type] || 'كاش';
 
     setData(prev => {
       const newExpense = {
@@ -783,7 +1085,8 @@ export function ERPProvider({ children }) {
             date: expDate,
             type: 'outgoing',
             category: 'expense',
-            description: `${typeNames[type] || 'مصروف'}: ${description}`,
+            paymentMethod: type,
+            description: `مصروف (${paymentTypeLabel}): ${description}`,
             amount: val,
             balance: newBal
           }
@@ -796,7 +1099,7 @@ export function ERPProvider({ children }) {
       };
     });
 
-    notify(`تم حفظ المصروف وخصم ${val.toLocaleString()} ج.م من الخزنة الرئيسية تلقائياً`, 'success');
+    notify(`تم حفظ المصروف (${paymentTypeLabel}) وخصم ${val.toLocaleString()} ج.م من الخزنة الرئيسية تلقائياً`, 'success');
   };
 
   const deleteExpense = (id) => {
@@ -948,17 +1251,27 @@ export function ERPProvider({ children }) {
 
   // CRUD for Entities (Warehouses, Customers, Reps, Companies, Products, Prices, Users)
   const saveWarehouse = (warehouseData) => {
+    let blocked = false;
     setData(prev => {
       if (warehouseData.id) {
         return {
           ...prev,
-          warehouses: prev.warehouses.map(w => w.id === warehouseData.id ? { ...w, ...warehouseData } : w)
+          warehouses: prev.warehouses.map(w =>
+            w.id === warehouseData.id
+              ? { ...w, ...warehouseData, companyId: w.companyId }
+              : w
+          )
         };
+      }
+      const targetCompanyId = Number(warehouseData.companyId);
+      if (prev.warehouses.some(w => Number(w.companyId) === targetCompanyId)) {
+        blocked = true;
+        return prev;
       }
       const newW = {
         id: prev.warehouses.length ? Math.max(...prev.warehouses.map(w => w.id)) + 1 : 1,
         name: warehouseData.name,
-        companyId: Number(warehouseData.companyId),
+        companyId: targetCompanyId,
         openingBalance: Number(warehouseData.openingBalance || 0),
         goodsValue: Number(warehouseData.goodsValue ?? warehouseData.openingBalance ?? 0),
         cash: Number(warehouseData.cash || 0),
@@ -967,7 +1280,11 @@ export function ERPProvider({ children }) {
       };
       return { ...prev, warehouses: [...prev.warehouses, newW] };
     });
-    notify('تم حفظ بيانات المخزن بنجاح', 'success');
+    if (blocked) {
+      notify('لكل شركة منتجة مخزن واحد فقط يتم إنشاؤه تلقائياً مع الشركة', 'info');
+    } else {
+      notify('تم حفظ بيانات المخزن بنجاح', 'success');
+    }
   };
 
   const deleteWarehouse = (id) => {
@@ -1033,29 +1350,63 @@ export function ERPProvider({ children }) {
   };
 
   const saveCompany = (companyData) => {
+    const isEditing = Boolean(companyData.id);
     setData(prev => {
-      if (companyData.id) {
+      if (isEditing) {
+        const oldCompany = prev.companies.find(c => c.id === companyData.id);
         return {
           ...prev,
-          companies: prev.companies.map(c => c.id === companyData.id ? { ...c, ...companyData } : c)
+          companies: prev.companies.map(c => c.id === companyData.id ? { ...c, ...companyData } : c),
+          warehouses: prev.warehouses.map(w => {
+            if (w.companyId !== companyData.id) return w;
+            if (oldCompany && w.name === `مخزن ${oldCompany.name}`) {
+              return { ...w, name: `مخزن ${companyData.name}` };
+            }
+            return w;
+          })
         };
       }
+      const newCompId = prev.companies.length ? Math.max(...prev.companies.map(c => c.id)) + 1 : 1;
       const newComp = {
-        id: prev.companies.length ? Math.max(...prev.companies.map(c => c.id)) + 1 : 1,
+        id: newCompId,
         name: companyData.name,
         address: companyData.address || '',
         phone: companyData.phone || '',
         totalPurchases: Number(companyData.totalPurchases || 0),
         paidToCompany: Number(companyData.paidToCompany || 0)
       };
-      return { ...prev, companies: [...prev.companies, newComp] };
+      const newWarehouseId = prev.warehouses.length ? Math.max(...prev.warehouses.map(w => w.id)) + 1 : 1;
+      const newWarehouse = {
+        id: newWarehouseId,
+        name: `مخزن ${companyData.name}`,
+        companyId: newCompId,
+        openingBalance: 0,
+        goodsValue: 0,
+        cash: 0,
+        repGoods: 0,
+        repCash: 0
+      };
+      return {
+        ...prev,
+        companies: [...prev.companies, newComp],
+        warehouses: [...prev.warehouses, newWarehouse]
+      };
     });
-    notify('تم حفظ بيانات الشركة المنتجة بنجاح', 'success');
+    notify(
+      isEditing
+        ? 'تم تحديث بيانات الشركة المنتجة بنجاح'
+        : 'تم إضافة الشركة المنتجة وإنشاء مخزنها التابع تلقائياً بنجاح',
+      'success'
+    );
   };
 
   const deleteCompany = (id) => {
-    setData(prev => ({ ...prev, companies: prev.companies.filter(c => c.id !== id) }));
-    notify('تم حذف الشركة', 'info');
+    setData(prev => ({
+      ...prev,
+      companies: prev.companies.filter(c => c.id !== id),
+      warehouses: prev.warehouses.filter(w => w.companyId !== id)
+    }));
+    notify('تم حذف الشركة ومخزنها التابع', 'info');
   };
 
   const saveProduct = (productData) => {
@@ -1144,19 +1495,26 @@ export function ERPProvider({ children }) {
 
   const saveUser = (userData) => {
     setData(prev => {
-      if (userData.id) {
+      const normalized = {
+        ...userData,
+        repId: userData.role === 'sales-rep' && userData.repId ? Number(userData.repId) : null,
+        repType: userData.role === 'sales-rep' ? (userData.repType || 'wholesale') : null
+      };
+      if (normalized.id) {
         return {
           ...prev,
-          users: prev.users.map(u => u.id === userData.id ? { ...u, ...userData } : u)
+          users: prev.users.map(u => u.id === normalized.id ? { ...u, ...normalized } : u)
         };
       }
       const newU = {
         id: prev.users.length ? Math.max(...prev.users.map(u => u.id)) + 1 : 1,
-        username: userData.username,
-        password: userData.password || '1234',
-        name: userData.name,
-        role: userData.role || 'sales-rep',
-        status: userData.status || 'active'
+        username: normalized.username,
+        password: normalized.password || '1234',
+        name: normalized.name,
+        role: normalized.role || 'sales-rep',
+        repId: normalized.repId,
+        repType: normalized.repType,
+        status: normalized.status || 'active'
       };
       return { ...prev, users: [...prev.users, newU] };
     });
@@ -1180,8 +1538,11 @@ export function ERPProvider({ children }) {
       value={{
         data,
         currentUser,
+        currentRep,
         activeSection,
         setActiveSection,
+        goBack,
+        canGoBack,
         selectedCustomerId,
         setSelectedCustomerId,
         selectedWarehouseId,
@@ -1199,11 +1560,15 @@ export function ERPProvider({ children }) {
         getRepName,
         getCustomerName,
         getProductName,
+        getPaymentMethodLabel,
         createSalesInvoice,
         createReturnInvoice,
         createPaymentInvoice,
         createTransferInvoice,
+        createRepCustodyInvoice,
         dispatchGoodsToRep,
+        addWarehouseMovement,
+        updateWarehouseMovement,
         addCashOperation,
         addExpense,
         deleteExpense,

@@ -15,6 +15,8 @@ export default function AdminUsersSection() {
     password: '1234',
     name: '',
     role: 'sales-rep',
+    repId: '',
+    repType: 'wholesale',
     status: 'active'
   });
 
@@ -27,7 +29,16 @@ export default function AdminUsersSection() {
         actions={
           <button
             onClick={() => {
-              setUserForm({ id: null, username: '', password: '1234', name: '', role: 'sales-rep', status: 'active' });
+              setUserForm({
+                id: null,
+                username: '',
+                password: '1234',
+                name: '',
+                role: 'sales-rep',
+                repId: data.salesReps[0]?.id || '',
+                repType: 'wholesale',
+                status: 'active'
+              });
               setUserModal(true);
             }}
             className="px-4 py-2 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
@@ -56,7 +67,10 @@ export default function AdminUsersSection() {
                   <td className="p-3 font-bold text-slate-800">{u.name}</td>
                   <td className="p-3 font-mono text-xs text-indigo-700 font-bold">{u.username}</td>
                   <td className="p-3">
-                    <Badge variant="info">{ROLE_PERMISSIONS[u.role]?.label || u.role}</Badge>
+                    <Badge variant="info">
+                      {ROLE_PERMISSIONS[u.role]?.label || u.role}
+                      {u.role === 'sales-rep' && u.repType ? ` (${u.repType === 'retail' ? 'تجزئة فقط' : 'جملة فقط'})` : ''}
+                    </Badge>
                   </td>
                   <td className="p-3">
                     <Badge variant={u.status === 'active' ? 'success' : 'danger'}>
@@ -114,7 +128,7 @@ export default function AdminUsersSection() {
               className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">اسم الدخول (Username):</label>
               <input
@@ -146,6 +160,43 @@ export default function AdminUsersSection() {
               ))}
             </select>
           </div>
+          {userForm.role === 'sales-rep' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-indigo-50/60 p-3 rounded-xl border border-indigo-200">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">ربط بمندوب مبيعات:</label>
+                <select
+                  value={userForm.repId || ''}
+                  onChange={(e) => {
+                    const selected = data.salesReps.find(r => r.id === Number(e.target.value));
+                    setUserForm({
+                      ...userForm,
+                      repId: e.target.value ? Number(e.target.value) : '',
+                      repType: selected?.type || userForm.repType || 'wholesale'
+                    });
+                  }}
+                  className="w-full p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                >
+                  <option value="">اختر المندوب...</option>
+                  {data.salesReps.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.type === 'retail' ? 'تجزئة' : 'جملة'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">تخصص المندوب:</label>
+                <select
+                  value={userForm.repType || 'wholesale'}
+                  onChange={(e) => setUserForm({ ...userForm, repType: e.target.value })}
+                  className="w-full p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                >
+                  <option value="wholesale">جملة فقط</option>
+                  <option value="retail">تجزئة فقط</option>
+                </select>
+              </div>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-3">
             <button
               type="button"

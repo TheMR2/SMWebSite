@@ -5,7 +5,7 @@ import Modal from '../ui/Modal';
 import { Building2, PlusCircle, Edit, Trash2 } from 'lucide-react';
 
 export default function CompaniesSection() {
-  const { data, activeSection, saveCompany, deleteCompany } = useERP();
+  const { data, activeSection, setActiveSection, setSelectedWarehouseId, saveCompany, deleteCompany } = useERP();
   const [compModalOpen, setCompModalOpen] = useState(false);
   const [compForm, setCompForm] = useState({
     id: null,
@@ -20,7 +20,7 @@ export default function CompaniesSection() {
     <div className="space-y-6 animate-fadeIn">
       <SectionCard
         title={activeSection === 'company-accounts' ? 'حسابات الشركات المنتجة والموردين' : 'الشركات المنتجة المعتمدة'}
-        subtitle="متابعة المخازن التابعة لكل شركة وإجمالي المبيعات والمشتريات"
+        subtitle="لكل شركة مخزن واحد يتم إنشاؤه تلقائياً عند إضافة الشركة مع متابعة المبيعات والمشتريات"
         icon={Building2}
         actions={
           <button
@@ -41,8 +41,8 @@ export default function CompaniesSection() {
               <tr>
                 <th className="p-3">#</th>
                 <th className="p-3">اسم الشركة المنتجة</th>
-                <th className="p-3">عدد المخازن</th>
-                <th className="p-3">إجمالي بضاعة مخازنها</th>
+                <th className="p-3">المخزن التابع</th>
+                <th className="p-3">إجمالي بضاعة المخزن</th>
                 <th className="p-3">إجمالي المبيعات</th>
                 <th className="p-3">إجمالي المشتريات</th>
                 <th className="p-3">الرصيد المتبقي للشركة</th>
@@ -69,7 +69,22 @@ export default function CompaniesSection() {
                         {c.address} • {c.phone}
                       </span>
                     </td>
-                    <td className="p-3 font-bold">{compWarehouses.length} مخازن</td>
+                    <td className="p-3 font-bold">
+                      {compWarehouses[0] ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedWarehouseId(compWarehouses[0].id);
+                            setActiveSection('warehouse-detail');
+                          }}
+                          className="text-indigo-700 hover:underline cursor-pointer text-right"
+                        >
+                          {compWarehouses[0].name}
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">غير محدد</span>
+                      )}
+                    </td>
                     <td className="p-3 font-bold text-blue-700">{compGoodsVal.toLocaleString()} ج.م</td>
                     <td className="p-3 font-bold text-emerald-700">{compSales.toLocaleString()} ج.م</td>
                     <td className="p-3 font-semibold">{purchases.toLocaleString()} ج.م</td>
@@ -87,7 +102,7 @@ export default function CompaniesSection() {
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm(`حذف ${c.name}؟`)) deleteCompany(c.id);
+                            if (window.confirm(`حذف ${c.name} ومخزنها التابع؟`)) deleteCompany(c.id);
                           }}
                           className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
                         >
@@ -144,6 +159,11 @@ export default function CompaniesSection() {
               className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
             />
           </div>
+          {!compForm.id && (
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-semibold text-indigo-800">
+              سيتم إنشاء مخزن واحد تلقائياً لهذه الشركة فور حفظها.
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-3">
             <button
               type="button"

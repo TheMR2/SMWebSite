@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { ChevronDown, ChevronLeft } from 'lucide-react';
+import { ChevronDown, ChevronLeft, X } from 'lucide-react';
+import logoImg from '../../assets/logo.png';
 
 const MENU_GROUPS = [
   {
@@ -23,7 +24,7 @@ const MENU_GROUPS = [
     label: 'المخازن',
     icon: '🏭',
     children: [
-      { label: 'نظرة عامة (24 مخزن)', sectionId: 'warehouse-overview' },
+      { label: 'نظرة عامة على المخازن', sectionId: 'warehouse-overview' },
       { label: 'تفاصيل مخزن محدد', sectionId: 'warehouse-detail' },
       { label: 'سجل حركات المخازن', sectionId: 'warehouse-movements' }
     ]
@@ -38,6 +39,7 @@ const MENU_GROUPS = [
       { label: 'فاتورة مرتجع', sectionId: 'return-invoice' },
       { label: 'فاتورة سداد عميل', sectionId: 'payment-invoice' },
       { label: 'فاتورة توريد للخزنة', sectionId: 'transfer-invoice' },
+      { label: 'العهدة (فاتورة مندوب)', sectionId: 'rep-custody-invoice' },
       { label: 'سجل الفواتير المجمّع', sectionId: 'invoices-log' }
     ]
   },
@@ -128,13 +130,26 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
 
   return (
     <aside
-      className={`no-print fixed right-0 top-0 h-screen w-68 bg-gradient-to-b from-[#1a237e] to-[#283593] text-white z-40 overflow-y-auto shadow-2xl transition-transform duration-300 ${
+      className={`no-print fixed right-0 top-0 h-[100dvh] w-[82vw] max-w-72 lg:w-68 bg-gradient-to-b from-[#1a237e] to-[#283593] text-white z-40 overflow-y-auto shadow-2xl transition-transform duration-300 ${
         mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
       }`}
     >
-      <div className="p-5 text-center border-b border-white/10">
+      <div className="p-5 text-center border-b border-white/10 relative">
+        <button
+          type="button"
+          onClick={() => setMobileOpen && setMobileOpen(false)}
+          className="lg:hidden absolute left-3 top-3 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+          aria-label="إغلاق القائمة"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <img
+          src={logoImg}
+          alt="شعار شركة الصفا والمروة"
+          className="w-16 h-16 rounded-full object-cover mx-auto mb-2.5 shadow-lg ring-2 ring-amber-300/60"
+        />
         <h2 className="text-base font-extrabold leading-relaxed tracking-wide text-white">
-          🏢 شركة الصفا والمروة
+          شركة الصفا والمروة
           <span className="block text-xs font-medium text-amber-300 mt-0.5">
             للمواد الغذائية والتوزيع
           </span>

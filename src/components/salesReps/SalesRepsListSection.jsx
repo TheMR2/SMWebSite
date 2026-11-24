@@ -9,11 +9,14 @@ import { Users, UserPlus, Eye, Edit, Trash2, Truck } from 'lucide-react';
 export default function SalesRepsListSection() {
   const {
     data,
+    currentUser,
     setActiveSection,
     setSelectedRepId,
     getWarehouseName,
     deleteRep
   } = useERP();
+
+  const isAdmin = currentUser?.role === 'admin';
 
   const [repModalOpen, setRepModalOpen] = useState(false);
   const [editingRep, setEditingRep] = useState(null);
@@ -34,16 +37,18 @@ export default function SalesRepsListSection() {
               <Truck className="w-4 h-4" />
               <span>تحميل بضاعة من مخزن لعهدة مندوب</span>
             </button>
-            <button
-              onClick={() => {
-                setEditingRep(null);
-                setRepModalOpen(true);
-              }}
-              className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>إضافة مندوب</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setEditingRep(null);
+                  setRepModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>إضافة مندوب</span>
+              </button>
+            )}
           </>
         }
       >
@@ -89,25 +94,29 @@ export default function SalesRepsListSection() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => {
-                            setEditingRep(rep);
-                            setRepModalOpen(true);
-                          }}
-                          className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
-                          title="تعديل"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`حذف المندوب ${rep.name}؟`)) deleteRep(rep.id);
-                          }}
-                          className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
-                          title="حذف"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {isAdmin && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingRep(rep);
+                                setRepModalOpen(true);
+                              }}
+                              className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
+                              title="تعديل"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`حذف المندوب ${rep.name}؟`)) deleteRep(rep.id);
+                              }}
+                              className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                              title="حذف"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

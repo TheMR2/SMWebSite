@@ -4,12 +4,12 @@ import SectionCard from '../ui/SectionCard';
 import StatCard from '../ui/StatCard';
 
 export default function AccountingUsersSection() {
-  const { setActiveSection } = useERP();
+  const { data, setActiveSection } = useERP();
 
   const accCards = [
     { title: 'المبيعات والفواتير', desc: 'إصدار فواتير المبيعات والمرتجعات وسندات التحصيل', target: 'sales-invoice', color: 'blue' },
     { title: 'المشتريات والأسعار', desc: 'تحديث قوائم الأسعار ومرتجعات الشركات المنتجة', target: 'purchase-prices', color: 'green' },
-    { title: 'إدارة المخازن (24 مخزن)', desc: 'متابعة أرصدة المخازن وحركات الصرف والتوريد', target: 'warehouse-overview', color: 'orange' },
+    { title: `إدارة المخازن (${data.warehouses.length} مخزن)`, desc: 'متابعة أرصدة المخازن وحركات الصرف والتوريد', target: 'warehouse-overview', color: 'orange' },
     { title: 'حسابات العملاء والائتمان', desc: 'متابعة الحدود الائتمانية وكشوف الحسابات والمديونيات', target: 'customers-list', color: 'purple' },
     { title: 'الخزنة الرئيسية والمصروفات', desc: 'إدارة الرصيد النقدي وحركات الخزنة والمصروفات', target: 'cash-balance', color: 'amber' },
     { title: 'حسابات الشركات المنتجة', desc: 'متابعة التوريدات والمدفوعات للشركات المنتجة', target: 'companies-list', color: 'blue' }

@@ -7,6 +7,7 @@ export default function WarehouseDetailSection() {
   const {
     data,
     setActiveSection,
+    canAccessSection,
     selectedWarehouseId,
     setSelectedWarehouseId,
     getCompanyName
@@ -24,12 +25,12 @@ export default function WarehouseDetailSection() {
         title="🔍 تفاصيل وفحص مخزن محدد"
         subtitle="عرض معادلة الرصيد وحركات الصرف والتوريد الخاصة بالمخزن"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <label className="text-xs font-bold text-slate-700">اختر المخزن:</label>
             <select
               value={currentW?.id || ''}
               onChange={(e) => setSelectedWarehouseId(Number(e.target.value))}
-              className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+              className="w-full sm:w-auto max-w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
             >
               {data.warehouses.map(w => (
                 <option key={w.id} value={w.id}>
@@ -79,20 +80,24 @@ export default function WarehouseDetailSection() {
               <div className="text-xs font-bold text-slate-600">
                 الشركة المنتجة التابعة: <span className="text-indigo-900">{getCompanyName(currentW.companyId)}</span> | الرصيد الافتتاحي: <span className="text-indigo-900">{currentW.openingBalance.toLocaleString()} ج.م</span>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveSection('transfer-invoice')}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer"
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5" />
-                  <span>توريد نقدية من هذا المخزن للخزنة</span>
-                </button>
-                <button
-                  onClick={() => setActiveSection('sales-invoice')}
-                  className="px-3 py-1.5 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-lg cursor-pointer"
-                >
-                  إصدار فاتورة مبيعات من المخزن
-                </button>
+              <div className="flex flex-wrap gap-2">
+                {canAccessSection('transfer-invoice') && (
+                  <button
+                    onClick={() => setActiveSection('transfer-invoice')}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>توريد نقدية من هذا المخزن للخزنة</span>
+                  </button>
+                )}
+                {canAccessSection('sales-invoice') && (
+                  <button
+                    onClick={() => setActiveSection('sales-invoice')}
+                    className="px-3 py-1.5 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-lg cursor-pointer"
+                  >
+                    إصدار فاتورة مبيعات من المخزن
+                  </button>
+                )}
               </div>
             </div>
 

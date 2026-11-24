@@ -16,6 +16,7 @@ import SalesInvoiceSection from './components/invoices/SalesInvoiceSection';
 import ReturnInvoiceSection from './components/invoices/ReturnInvoiceSection';
 import PaymentInvoiceSection from './components/invoices/PaymentInvoiceSection';
 import TransferInvoiceSection from './components/invoices/TransferInvoiceSection';
+import RepCustodyInvoiceSection from './components/invoices/RepCustodyInvoiceSection';
 import InvoicesLogSection from './components/invoices/InvoicesLogSection';
 import CustomersListSection from './components/customers/CustomersListSection';
 import CustomerAccountSection from './components/customers/CustomerAccountSection';
@@ -65,6 +66,8 @@ function MainLayout() {
         return <PaymentInvoiceSection />;
       case 'transfer-invoice':
         return <TransferInvoiceSection />;
+      case 'rep-custody-invoice':
+        return <RepCustodyInvoiceSection />;
       case 'invoices-log':
         return <InvoicesLogSection />;
       case 'customers-list':
@@ -110,7 +113,7 @@ function MainLayout() {
         />
       )}
 
-      <div className="main-content-area lg:mr-68 p-4 md:p-6 transition-all">
+      <div className="main-content-area lg:mr-68 p-3 sm:p-4 md:p-6 transition-all min-w-0 overflow-x-hidden">
         <TopHeader onOpenMobileMenu={() => setMobileOpen(true)} />
         <ToastNotifications />
         <main>{renderSection()}</main>

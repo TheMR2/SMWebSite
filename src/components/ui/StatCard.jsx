@@ -13,12 +13,12 @@ export default function StatCard({ label, value, subtitle, color = 'blue', onCli
   return (
     <div
       onClick={onClick}
-      className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-2xl shadow-md ${
+      className={`bg-gradient-to-br ${gradient} text-white p-4 sm:p-5 rounded-2xl shadow-md ${
         onClick ? 'cursor-pointer hover:scale-[1.01] transition' : ''
       }`}
     >
       <div className="text-xs font-semibold opacity-90">{label}</div>
-      <div className="text-2xl font-extrabold my-1.5">{value}</div>
+      <div className="text-xl sm:text-2xl font-extrabold my-1 sm:my-1.5 break-words">{value}</div>
       {subtitle && <div className="text-[11px] opacity-85">{subtitle}</div>}
     </div>
   );

@@ -62,7 +62,7 @@ export default function PaymentInvoiceSection() {
           </div>
 
           {payCustObj && (
-            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
               <div>
                 <span className="text-slate-500 block">الرصيد المدين قبل السداد:</span>
                 <strong className="text-base text-rose-700">{currentDebt.toLocaleString()} ج.م</strong>
@@ -106,9 +106,9 @@ export default function PaymentInvoiceSection() {
                 onChange={(e) => setPayMethod(e.target.value)}
                 className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold"
               >
-                <option value="cash">كاش (نقداً)</option>
-                <option value="bank">إيداع بنكي</option>
-                <option value="check">شيك</option>
+                <option value="cash">نقداً (كاش)</option>
+                <option value="vodafone_cash">فودافون كاش</option>
+                <option value="instapay">إنستا باي</option>
               </select>
             </div>
             <div>
