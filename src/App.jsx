@@ -33,7 +33,7 @@ import SalesRepsUsersSection from './components/users/SalesRepsUsersSection';
 import AccountingUsersSection from './components/users/AccountingUsersSection';
 
 function MainLayout() {
-  const { currentUser, activeSection } = useERP();
+  const { currentUser, activeSection, setActiveSection, canAccessSection } = useERP();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (!currentUser) {
@@ -41,6 +41,29 @@ function MainLayout() {
   }
 
   const renderSection = () => {
+    if (!canAccessSection(activeSection)) {
+      return (
+        <div className="bg-white rounded-2xl p-8 shadow-sm border border-rose-200 max-w-xl mx-auto text-center space-y-4">
+          <div className="text-3xl">🔒</div>
+          <h2 className="text-lg font-extrabold text-rose-800">
+            عذراً، ليس لديك صلاحية للوصول إلى هذه الشاشة
+          </h2>
+          <p className="text-xs text-slate-500 font-semibold">
+            تم تقييد الوصول لهذه الشاشة وفقاً لصلاحيات حسابك الحالية.
+          </p>
+          {canAccessSection('dashboard') && (
+            <button
+              type="button"
+              onClick={() => setActiveSection('dashboard')}
+              className="px-5 py-2.5 bg-[#1a237e] text-white text-xs font-bold rounded-xl cursor-pointer"
+            >
+              العودة إلى لوحة التحكم
+            </button>
+          )}
+        </div>
+      );
+    }
+
     switch (activeSection) {
       case 'dashboard':
         return <DashboardSection />;

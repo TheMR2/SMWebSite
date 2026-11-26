@@ -9,10 +9,16 @@ import { Warehouse, Edit, Eye } from 'lucide-react';
 export default function WarehouseOverviewSection() {
   const {
     data,
+    currentUser,
     setActiveSection,
     setSelectedWarehouseId,
     getCompanyName
   } = useERP();
+
+  const canManageWarehouses =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'accountant' ||
+    (typeof currentUser?.role === 'string' && currentUser.role.startsWith('accounting-'));
 
   const [companyFilter, setCompanyFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -103,16 +109,18 @@ export default function WarehouseOverviewSection() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => {
-                            setEditingWarehouse(w);
-                            setModalOpen(true);
-                          }}
-                          className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg cursor-pointer"
-                          title="تعديل"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
+                        {canManageWarehouses && (
+                          <button
+                            onClick={() => {
+                              setEditingWarehouse(w);
+                              setModalOpen(true);
+                            }}
+                            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg cursor-pointer"
+                            title="تعديل"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -126,11 +134,13 @@ export default function WarehouseOverviewSection() {
       {/* سجل الحركات مباشرة أسفل نظرة عامة */}
       <WarehouseMovementsSection embedded />
 
-      <WarehouseFormModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        initialData={editingWarehouse}
-      />
+      {canManageWarehouses && (
+        <WarehouseFormModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          initialData={editingWarehouse}
+        />
+      )}
     </div>
   );
 }

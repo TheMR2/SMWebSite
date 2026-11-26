@@ -140,6 +140,13 @@ export default function ReturnInvoiceSection() {
                 ))}
               </select>
             )}
+            <div className="mt-1.5 text-[11px] text-rose-800 font-semibold">
+              تُضاف البضاعة المرتجعة تلقائياً إلى عهدة المندوب (العهدة الحالية:{' '}
+              <strong>
+                {Number(data.salesReps.find(r => r.id === Number(retRepId))?.repGoods || 0).toLocaleString()} ج.م
+              </strong>
+              )
+            </div>
           </div>
 
           <div>

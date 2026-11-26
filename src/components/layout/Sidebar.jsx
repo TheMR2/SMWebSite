@@ -117,7 +117,8 @@ const MENU_GROUPS = [
 ];
 
 export default function Sidebar({ mobileOpen, setMobileOpen }) {
-  const { activeSection, setActiveSection, canAccessSection } = useERP();
+  const { currentUser, activeSection, setActiveSection, canAccessSection } = useERP();
+  const isSalesRep = currentUser?.role === 'sales-rep';
   const [openMenus, setOpenMenus] = useState({
     'invoices-sub': true,
     'customers-sub': true,
@@ -166,6 +167,9 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
           if (group.sectionId) {
             if (!canAccessSection(group.sectionId)) return null;
             const isActive = activeSection === group.sectionId;
+            const displayLabel = group.id === 'rep-custody-item' && isSalesRep
+              ? 'استعلام عن العهدة'
+              : group.label;
             return (
               <div
                 key={group.id}
@@ -177,7 +181,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                 }`}
               >
                 <span>{group.icon}</span>
-                <span>{group.label}</span>
+                <span>{displayLabel}</span>
               </div>
             );
           }

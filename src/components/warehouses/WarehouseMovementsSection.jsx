@@ -8,11 +8,17 @@ import { PlusCircle, Edit } from 'lucide-react';
 export default function WarehouseMovementsSection({ embedded = false }) {
   const {
     data,
+    currentUser,
     setActiveSection,
     getWarehouseName,
     addWarehouseMovement,
     updateWarehouseMovement
   } = useERP();
+
+  const canManageWarehouses =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'accountant' ||
+    (typeof currentUser?.role === 'string' && currentUser.role.startsWith('accounting-'));
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -92,13 +98,15 @@ export default function WarehouseMovementsSection({ embedded = false }) {
         subtitle="تسجيل عمليات الصادر وتعديل سجل حركات المخازن"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setAddModalOpen(true)}
-              className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>تسجيل عملية مخزن (صادر فقط)</span>
-            </button>
+            {canManageWarehouses && (
+              <button
+                onClick={() => setAddModalOpen(true)}
+                className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>تسجيل عملية مخزن (صادر فقط)</span>
+              </button>
+            )}
             {!embedded && (
               <button
                 onClick={() => setActiveSection('warehouse-overview')}
@@ -122,13 +130,13 @@ export default function WarehouseMovementsSection({ embedded = false }) {
                 <th className="p-3">البيان / الوصف</th>
                 <th className="p-3">الكمية</th>
                 <th className="p-3">القيمة المالية</th>
-                <th className="p-3">تعديل</th>
+                {canManageWarehouses && <th className="p-3">تعديل</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {data.warehouseMovements.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-6 text-center text-slate-400">
+                  <td colSpan={canManageWarehouses ? 9 : 8} className="p-6 text-center text-slate-400">
                     لا توجد حركات مسجلة حالياً
                   </td>
                 </tr>
@@ -145,16 +153,18 @@ export default function WarehouseMovementsSection({ embedded = false }) {
                     <td className="p-3 text-slate-700">{m.description}</td>
                     <td className="p-3 font-bold">{m.qty}</td>
                     <td className="p-3 font-extrabold text-[#1a237e]">{Number(m.value || 0).toLocaleString()} ج.م</td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => openEditModal(m)}
-                        className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg inline-flex items-center gap-1 text-xs font-bold cursor-pointer"
-                        title="تعديل سجل الحركة"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                        <span>تعديل</span>
-                      </button>
-                    </td>
+                    {canManageWarehouses && (
+                      <td className="p-3">
+                        <button
+                          onClick={() => openEditModal(m)}
+                          className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg inline-flex items-center gap-1 text-xs font-bold cursor-pointer"
+                          title="تعديل سجل الحركة"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>تعديل</span>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -163,8 +173,10 @@ export default function WarehouseMovementsSection({ embedded = false }) {
         </div>
       </SectionCard>
 
-      {/* Modal: تسجيل عملية مخزن (صادر فقط) */}
-      <Modal
+      {canManageWarehouses && (
+        <>
+          {/* Modal: تسجيل عملية مخزن (صادر فقط) */}
+          <Modal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         title="📤 تسجيل عملية مخزن (صادر فقط)"
@@ -362,6 +374,8 @@ export default function WarehouseMovementsSection({ embedded = false }) {
           </form>
         )}
       </Modal>
+        </>
+      )}
     </div>
   );
 }

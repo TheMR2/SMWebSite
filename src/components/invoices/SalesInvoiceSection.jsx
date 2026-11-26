@@ -419,6 +419,11 @@ export default function SalesInvoiceSection() {
                 ))}
               </select>
             )}
+            {selectedRep && (
+              <div className="mt-1.5 text-[11px] text-amber-800 font-semibold">
+                رصيد عهدة المندوب الحالية: <strong>{Number(selectedRep.repGoods || 0).toLocaleString()} ج.م</strong>
+              </div>
+            )}
           </div>
 
           <div>
@@ -734,6 +739,12 @@ export default function SalesInvoiceSection() {
           </div>
         </div>
 
+        {selectedRep && totalWarehouseDeduction > Number(selectedRep.repGoods || 0) && (
+          <div className="no-print mb-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-3 text-xs font-bold">
+            ⚠️ تنبيه: إجمالي قيمة البضاعة في الفاتورة ({totalWarehouseDeduction.toLocaleString()} ج.م) يتجاوز رصيد عهدة المندوب الحالية ({Number(selectedRep.repGoods || 0).toLocaleString()} ج.م).
+          </div>
+        )}
+
         <div className="no-print mt-6 bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 text-xs">
           <div className="font-extrabold text-indigo-950 mb-2 flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-indigo-700" />
@@ -741,14 +752,14 @@ export default function SalesInvoiceSection() {
           </div>
           <ul className="space-y-1 text-indigo-900 list-disc list-inside">
             <li>
-              <strong>المخزن ({getWarehouseName(warehouseId)}):</strong>{' '}
+              <strong>{repId ? `عهدة المندوب (${getRepName(repId)})` : `المخزن (${getWarehouseName(warehouseId)})`}:</strong>{' '}
               {bonusGoodsValue > 0 ? (
                 <>
-                  خصم بضاعة مبيعات بقيمة <strong>{netBeforeTax.toLocaleString()} ج.م</strong> + منح مجانية ({bonusTotalQty} وحدة) بقيمة <strong>{bonusGoodsValue.toLocaleString()} ج.م</strong> (إجمالي الخصم المخزني: <strong>{totalWarehouseDeduction.toLocaleString()} ج.م</strong>).
+                  خصم بضاعة مبيعات بقيمة <strong>{netBeforeTax.toLocaleString()} ج.م</strong> + منح مجانية ({bonusTotalQty} وحدة) بقيمة <strong>{bonusGoodsValue.toLocaleString()} ج.م</strong> (إجمالي الخصم من {repId ? 'عهدة المندوب' : 'المخزن'}: <strong>{totalWarehouseDeduction.toLocaleString()} ج.م</strong>).
                 </>
               ) : (
                 <>
-                  خصم بضاعة بقيمة صافية <strong>{netBeforeTax.toLocaleString()} ج.م</strong> وتسجيل حركة صرف مبيعات.
+                  خصم بضاعة بقيمة صافية <strong>{netBeforeTax.toLocaleString()} ج.م</strong> من {repId ? 'عهدة المندوب' : 'المخزن'} وتسجيل حركة صرف مبيعات.
                 </>
               )}
             </li>

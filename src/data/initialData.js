@@ -10,6 +10,95 @@ export const EXPENSE_PAYMENT_TYPES = {
   instapay: 'إنستا باي'
 };
 
+export const SECTION_CATALOG = [
+  {
+    group: 'لوحة التحكم',
+    items: [{ id: 'dashboard', label: 'لوحة التحكم' }]
+  },
+  {
+    group: 'العهدة',
+    items: [{ id: 'rep-custody-invoice', label: 'العهدة (فاتورة مندوب / استعلام)' }]
+  },
+  {
+    group: 'الخزنة',
+    items: [
+      { id: 'cash-balance', label: 'الرصيد العام والحركات' },
+      { id: 'cash-operations', label: 'تسجيل عملية خزنة' }
+    ]
+  },
+  {
+    group: 'المخازن',
+    items: [
+      { id: 'warehouse-overview', label: 'نظرة عامة على المخازن' },
+      { id: 'warehouse-detail', label: 'تفاصيل مخزن محدد' },
+      { id: 'warehouse-movements', label: 'سجل حركات المخازن' }
+    ]
+  },
+  {
+    group: 'الفواتير والعمليات',
+    items: [
+      { id: 'sales-invoice', label: 'فاتورة مبيعات' },
+      { id: 'return-invoice', label: 'فاتورة مرتجع' },
+      { id: 'payment-invoice', label: 'فاتورة سداد عميل' },
+      { id: 'transfer-invoice', label: 'فاتورة توريد للخزنة' },
+      { id: 'invoices-log', label: 'سجل الفواتير المجمّع' }
+    ]
+  },
+  {
+    group: 'العملاء',
+    items: [
+      { id: 'customers-list', label: 'قائمة العملاء والائتمان' },
+      { id: 'customer-account', label: 'كشف حساب عميل' }
+    ]
+  },
+  {
+    group: 'مناديب المبيعات',
+    items: [
+      { id: 'sales-reps', label: 'قائمة المناديب والعهد' },
+      { id: 'rep-report', label: 'تقرير مندوب ومديونياته' }
+    ]
+  },
+  {
+    group: 'المشتريات',
+    items: [
+      { id: 'purchase-prices', label: 'تحديث قوائم الأسعار' },
+      { id: 'purchase-returns', label: 'مرتجعات للشركات المنتجة' }
+    ]
+  },
+  {
+    group: 'المصروفات',
+    items: [
+      { id: 'expenses-list', label: 'قائمة المصروفات' },
+      { id: 'add-expense', label: 'إضافة مصروف جديد' }
+    ]
+  },
+  {
+    group: 'الأصناف والأسعار',
+    items: [
+      { id: 'price-lists', label: 'قوائم الأسعار (جملة/تجزئة)' },
+      { id: 'products', label: 'المنتجات والأصناف' }
+    ]
+  },
+  {
+    group: 'الشركات المنتجة',
+    items: [
+      { id: 'companies-list', label: 'الشركات المنتجة' },
+      { id: 'company-accounts', label: 'حسابات وتوريدات الشركات' }
+    ]
+  },
+  {
+    group: 'المستخدمون والصلاحيات',
+    items: [
+      { id: 'admin-users', label: 'إدارة المستخدمين (الأدمن)' },
+      { id: 'sales-manager', label: 'شاشة مشرف المبيعات' },
+      { id: 'sales-reps-users', label: 'شاشة مناديب المبيعات' },
+      { id: 'accounting-users', label: 'شاشة المحاسب' }
+    ]
+  }
+];
+
+export const ALL_SECTION_IDS = SECTION_CATALOG.flatMap(g => g.items.map(i => i.id));
+
 export const ROLE_PERMISSIONS = {
   'admin': {
     label: 'مدير النظام',
@@ -22,7 +111,6 @@ export const ROLE_PERMISSIONS = {
     allowedSections: [
       'dashboard',
       'warehouse-overview', 'warehouse-detail', 'warehouse-movements',
-      'companies-list', 'company-accounts',
       'sales-reps', 'rep-report',
       'customers-list', 'customer-account',
       'invoices-log',
@@ -58,6 +146,13 @@ export const ROLE_PERMISSIONS = {
   }
 };
 
+export function getDefaultSectionsForRole(role) {
+  const config = ROLE_PERMISSIONS[role];
+  if (!config) return [];
+  if (config.allowedSections.includes('*')) return [...ALL_SECTION_IDS];
+  return [...config.allowedSections];
+}
+
 export function createInitialData() {
   const companies = [
     { id: 1, name: 'شركة الأمل الغذائية', address: 'القاهرة - المنطقة الصناعية', phone: '01012345678', totalPurchases: 1800000, paidToCompany: 1500000 },
@@ -77,9 +172,51 @@ export function createInitialData() {
   }));
 
   const salesReps = [
-    { id: 1, name: 'مندوب جملة 1 (أحمد محمود)', type: 'wholesale', phone: '01011223344', warehouseId: 1, totalSales: 15000, repGoods: 5000, repCash: 2000 },
-    { id: 2, name: 'مندوب تجزئة 1 (محمد سعيد)', type: 'retail', phone: '01055667788', warehouseId: 2, totalSales: 8000, repGoods: 3000, repCash: 1500 },
-    { id: 3, name: 'مندوب جملة 2 (إبراهيم حسن)', type: 'wholesale', phone: '01099887766', warehouseId: 3, totalSales: 0, repGoods: 4000, repCash: 1000 }
+    {
+      id: 1,
+      name: 'مندوب جملة 1 (أحمد محمود)',
+      type: 'wholesale',
+      phone: '01011223344',
+      warehouseId: 1,
+      vehicleName: 'شيفروليه جامبو',
+      vehicleNumber: 'أ ب ج 1234',
+      totalSales: 15000,
+      repGoods: 5000,
+      repCash: 2000,
+      custodyItems: [
+        { productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', unit: 'كارتون', qty: 20, unitPrice: 250 }
+      ]
+    },
+    {
+      id: 2,
+      name: 'مندوب تجزئة 1 (محمد سعيد)',
+      type: 'retail',
+      phone: '01055667788',
+      warehouseId: 2,
+      vehicleName: 'سوزوكي فان',
+      vehicleNumber: 'س ص ع 5678',
+      totalSales: 8000,
+      repGoods: 3000,
+      repCash: 1500,
+      custodyItems: [
+        { productId: 2, productName: 'زيت طعام نقي (كرتونة 12 زجاجة)', unit: 'كارتون', qty: 5, unitPrice: 600 }
+      ]
+    },
+    {
+      id: 3,
+      name: 'مندوب جملة 2 (إبراهيم حسن)',
+      type: 'wholesale',
+      phone: '01099887766',
+      warehouseId: 3,
+      vehicleName: 'شيفروليه دبابة',
+      vehicleNumber: 'م ن هـ 9012',
+      totalSales: 0,
+      repGoods: 4000,
+      repCash: 1000,
+      custodyItems: [
+        { productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', unit: 'كارتون', qty: 16, unitPrice: 250 }
+      ]
+    }
   ];
 
   const customers = [
@@ -190,6 +327,24 @@ export function createInitialData() {
       paymentStatus: 'paid',
       items: [
         { productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', qty: 25, price: 280.7, discount: 0, discountType: 'amount', total: 7017.54, net: 7017.54 }
+      ]
+    },
+    {
+      id: 3,
+      type: 'custody',
+      number: 'CST-401',
+      date: '2026-11-01',
+      repId: 1,
+      repName: 'مندوب جملة 1 (أحمد محمود)',
+      warehouseId: 1,
+      warehouseName: 'مخزن شركة الأمل الغذائية',
+      vehicleName: 'شيفروليه جامبو',
+      vehicleNumber: 'أ ب ج 1234',
+      total: 5000,
+      paymentStatus: 'paid',
+      notes: 'عهدة افتتاحية للسيارة',
+      items: [
+        { productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', qty: 20, unit: 'كارتون', price: 250, total: 5000, details: 'عهدة افتتاحية' }
       ]
     }
   ];

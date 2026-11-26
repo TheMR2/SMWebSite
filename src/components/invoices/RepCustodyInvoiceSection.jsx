@@ -16,6 +16,162 @@ export default function RepCustodyInvoiceSection() {
   const isSalesRep = currentUser?.role === 'sales-rep';
   const todayStr = new Date().toISOString().split('T')[0];
 
+  if (isSalesRep) {
+    const activeRep = currentRep || data.salesReps[0];
+    const custodyItems = Array.isArray(activeRep?.custodyItems) ? activeRep.custodyItems : [];
+    const repCustodyInvoices = data.invoices.filter(
+      inv => inv.type === 'custody' && Number(inv.repId) === Number(activeRep?.id)
+    );
+
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm border border-slate-200 max-w-5xl mx-auto">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-500 pb-4 mb-6">
+            <div className="flex items-center gap-3">
+              <img
+                src={logoImg}
+                alt="شعار شركة الصفا والمروة"
+                className="w-14 h-14 rounded-full object-cover shadow-sm ring-2 ring-amber-100"
+              />
+              <div>
+                <h2 className="text-lg sm:text-xl font-extrabold text-[#1a237e] flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-amber-600" />
+                  <span>استعلام عن عهدة المندوب</span>
+                </h2>
+                <p className="text-xs font-bold text-slate-600 mt-0.5">
+                  {activeRep?.name || currentUser?.name} •{' '}
+                  {activeRep?.type === 'retail' ? 'تجزئة فقط' : 'جملة فقط'}
+                  {activeRep?.vehicleName ? ` • السيارة: ${activeRep.vehicleName} (${activeRep.vehicleNumber || '-'})` : ''}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="no-print px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>طباعة كشف العهدة</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <div className="text-xs font-bold text-amber-800">إجمالي قيمة العهدة الحالية</div>
+              <div className="text-xl font-extrabold text-amber-950 mt-1">
+                {Number(activeRep?.repGoods || 0).toLocaleString()} ج.م
+              </div>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div className="text-xs font-bold text-blue-800">عدد الأصناف المتاحة في العهدة</div>
+              <div className="text-xl font-extrabold text-blue-950 mt-1">
+                {custodyItems.length} صنف
+              </div>
+            </div>
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+              <div className="text-xs font-bold text-indigo-800">فواتير العهدة المستلمة</div>
+              <div className="text-xl font-extrabold text-indigo-950 mt-1">
+                {repCustodyInvoices.length} فاتورة
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold text-slate-700">
+            🔒 يتم إضافة وصرف العهدة عن طريق المحاسب فقط — وتنقص تلقائياً مع فواتير المبيعات وتزيد تلقائياً مع فواتير المرتجع.
+          </div>
+
+          <h3 className="text-sm font-extrabold text-[#1a237e] mb-3">
+            الأصناف الموجودة حالياً في عهدتك
+          </h3>
+          <div className="overflow-x-auto mb-8">
+            <table className="w-full text-right border-collapse">
+              <thead className="bg-slate-100 text-xs font-bold text-slate-700">
+                <tr>
+                  <th className="p-3">#</th>
+                  <th className="p-3">الصنف</th>
+                  <th className="p-3">الوحدة</th>
+                  <th className="p-3">الكمية المتاحة</th>
+                  <th className="p-3">سعر الوحدة</th>
+                  <th className="p-3">إجمالي القيمة</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {custodyItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="p-6 text-center text-slate-400">
+                      لا توجد أصناف متاحة في عهدتك حالياً
+                    </td>
+                  </tr>
+                ) : (
+                  custodyItems.map((item, idx) => {
+                    const lineVal = Number(item.qty || 0) * Number(item.unitPrice || 0);
+                    return (
+                      <tr key={`${item.productId}-${item.unit}-${idx}`} className="hover:bg-slate-50">
+                        <td className="p-3 text-xs text-slate-400">{idx + 1}</td>
+                        <td className="p-3 font-bold text-slate-800">{item.productName}</td>
+                        <td className="p-3 text-xs font-semibold text-slate-600">{item.unit || 'كارتون'}</td>
+                        <td className="p-3 font-extrabold text-amber-800">{Number(item.qty || 0).toLocaleString()}</td>
+                        <td className="p-3 text-xs font-bold text-slate-600">{Number(item.unitPrice || 0).toLocaleString()} ج.م</td>
+                        <td className="p-3 font-extrabold text-[#1a237e]">{lineVal.toLocaleString()} ج.م</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="text-sm font-extrabold text-[#1a237e] mb-3">
+            سجل فواتير العهدة المستلمة من المحاسب
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse">
+              <thead className="bg-slate-100 text-xs font-bold text-slate-700">
+                <tr>
+                  <th className="p-3">رقم الفاتورة</th>
+                  <th className="p-3">التاريخ</th>
+                  <th className="p-3">المخزن الصارف</th>
+                  <th className="p-3">السيارة</th>
+                  <th className="p-3">الأصناف</th>
+                  <th className="p-3">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {repCustodyInvoices.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="p-6 text-center text-slate-400">
+                      لا توجد فواتير عهدة مسجلة لك حتى الآن
+                    </td>
+                  </tr>
+                ) : (
+                  repCustodyInvoices.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-slate-50">
+                      <td className="p-3 font-mono text-xs font-bold text-indigo-800">{inv.number}</td>
+                      <td className="p-3 font-mono text-xs">{inv.date}</td>
+                      <td className="p-3 text-xs text-slate-700 font-semibold">
+                        {inv.warehouseName || getWarehouseName(inv.warehouseId)}
+                      </td>
+                      <td className="p-3 text-xs text-slate-600">
+                        {inv.vehicleName || '-'} ({inv.vehicleNumber || '-'})
+                      </td>
+                      <td className="p-3 text-xs text-slate-600">
+                        {(inv.items || []).map(i => `${i.productName} (${i.qty} ${i.unit || 'كارتون'})`).join('، ') || '-'}
+                      </td>
+                      <td className="p-3 font-extrabold text-amber-800">
+                        {Number(inv.total || 0).toLocaleString()} ج.م
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const initialRepId = isSalesRep && currentRep ? String(currentRep.id) : String(data.salesReps[0]?.id || '1');
 
   const [invDate, setInvDate] = useState(todayStr);

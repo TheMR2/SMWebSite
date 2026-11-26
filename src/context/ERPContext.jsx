@@ -1,8 +1,41 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { createInitialData, ROLE_PERMISSIONS, PAYMENT_METHODS, EXPENSE_PAYMENT_TYPES } from '../data/initialData';
+import {
+  createInitialData,
+  ROLE_PERMISSIONS,
+  PAYMENT_METHODS,
+  EXPENSE_PAYMENT_TYPES,
+  getDefaultSectionsForRole
+} from '../data/initialData';
 
 const ERPContext = createContext(null);
 const STORAGE_KEY = 'alsafa_erp_state_v1';
+
+function adjustCustodyItems(existingItems = [], deltaItems = [], sign = 1) {
+  const next = Array.isArray(existingItems) ? existingItems.map(i => ({ ...i })) : [];
+  (Array.isArray(deltaItems) ? deltaItems : []).forEach(item => {
+    const qtyVal = Number(item?.qty || 0);
+    if (qtyVal <= 0) return;
+    const pId = Number(item.productId);
+    const unit = item.unit || 'كارتون';
+    const deltaQty = sign * qtyVal;
+    const unitPrice = Number(item.price ?? item.catalogPrice ?? item.unitPrice ?? 0);
+
+    const existing = next.find(x => Number(x.productId) === pId && (x.unit || 'كارتون') === unit);
+    if (existing) {
+      existing.qty = Math.max(0, Number(existing.qty || 0) + deltaQty);
+      if (unitPrice > 0) existing.unitPrice = unitPrice;
+    } else if (deltaQty > 0) {
+      next.push({
+        productId: pId,
+        productName: item.productName || 'صنف',
+        unit,
+        qty: deltaQty,
+        unitPrice
+      });
+    }
+  });
+  return next.filter(i => Number(i.qty || 0) > 0);
+}
 const LEGACY_ACCOUNTANT_USERNAMES = new Set([
   'acc-sales',
   'acc-purchases',
@@ -100,7 +133,8 @@ function migrateLegacyState(parsed) {
     if (Array.isArray(updated.salesReps)) {
       updated.salesReps = updated.salesReps.map(r => ({
         ...r,
-        warehouseId: resolveWarehouseId(r.warehouseId)
+        warehouseId: resolveWarehouseId(r.warehouseId),
+        custodyItems: Array.isArray(r.custodyItems) ? r.custodyItems : []
       }));
     }
     if (Array.isArray(updated.invoices)) {
@@ -198,6 +232,22 @@ export function ERPProvider({ children }) {
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
+  const canAccessForUser = (user, sectionId) => {
+    if (!user) return false;
+    if (Array.isArray(user.allowedSections)) {
+      if (user.allowedSections.includes('*')) return true;
+      return user.allowedSections.includes(sectionId);
+    }
+    const normalizedRole =
+      typeof user.role === 'string' && user.role.startsWith('accounting-')
+        ? 'accountant'
+        : user.role;
+    const roleConfig = ROLE_PERMISSIONS[normalizedRole];
+    if (!roleConfig) return true;
+    if (roleConfig.allowedSections.includes('*')) return true;
+    return roleConfig.allowedSections.includes(sectionId);
+  };
+
   // Auth
   const login = (username, password) => {
     const found = data.users.find(
@@ -211,7 +261,12 @@ export function ERPProvider({ children }) {
     }
     setCurrentUser(found);
     setSectionHistory([]);
-    setActiveSectionState('dashboard');
+    const initialSection = canAccessForUser(found, 'dashboard')
+      ? 'dashboard'
+      : ((Array.isArray(found.allowedSections) && found.allowedSections[0]) ||
+          getDefaultSectionsForRole(found.role)[0] ||
+          'dashboard');
+    setActiveSectionState(initialSection);
     notify(`مرحباً بك يا ${found.name} في نظام شركة الصفا والمروة`, 'info');
     return { ok: true };
   };
@@ -222,17 +277,7 @@ export function ERPProvider({ children }) {
     setActiveSectionState('dashboard');
   };
 
-  const canAccessSection = (sectionId) => {
-    if (!currentUser) return false;
-    const normalizedRole =
-      typeof currentUser.role === 'string' && currentUser.role.startsWith('accounting-')
-        ? 'accountant'
-        : currentUser.role;
-    const roleConfig = ROLE_PERMISSIONS[normalizedRole];
-    if (!roleConfig) return true;
-    if (roleConfig.allowedSections.includes('*')) return true;
-    return roleConfig.allowedSections.includes(sectionId);
-  };
+  const canAccessSection = (sectionId) => canAccessForUser(currentUser, sectionId);
 
   // Helpers
   const getCompanyName = (companyId) => {
@@ -313,21 +358,29 @@ export function ERPProvider({ children }) {
 
     const effects = [];
 
+    const allSoldItems = [...items, ...normalizedBonusItems];
+
     setData(prev => {
-      // A. Update Warehouse (Deduct sales goodsValue + free bonus goodsValue, and if cash to warehouse, increase warehouse cash)
+      // A. Update Warehouse (Deduct from repGoods when sold by rep, or goodsValue if no rep; add cash if warehouse_cash)
       const warehouses = prev.warehouses.map(w => {
         if (w.id !== wId) return w;
-        const updatedGoods = Math.max(0, w.goodsValue - totalWarehouseDeduction);
+        const updatedGoods = rId ? w.goodsValue : Math.max(0, w.goodsValue - totalWarehouseDeduction);
+        const updatedRepGoods = rId ? Math.max(0, Number(w.repGoods || 0) - totalWarehouseDeduction) : w.repGoods;
         const addedCash = (paymentType === 'cash' && cashDestination === 'warehouse_cash') ? grandTotal : 0;
         return {
           ...w,
           goodsValue: updatedGoods,
+          repGoods: updatedRepGoods,
           cash: w.cash + addedCash
         };
       });
-      effects.push(`خصم بضاعة مبيعات بقيمة ${netGoodsVal.toLocaleString()} ج.م من (${getWarehouseName(wId)})`);
+      if (rId) {
+        effects.push(`خصم بضاعة مبيعات بقيمة ${totalWarehouseDeduction.toLocaleString()} ج.م من عهدة المندوب (${getRepName(rId)})`);
+      } else {
+        effects.push(`خصم بضاعة مبيعات بقيمة ${netGoodsVal.toLocaleString()} ج.م من (${getWarehouseName(wId)})`);
+      }
       if (bonusGoodsVal > 0 || bonusTotalQty > 0) {
-        effects.push(`خصم منح مجانية (${bonusTotalQty} وحدة) بقيمة ${bonusGoodsVal.toLocaleString()} ج.م من (${getWarehouseName(wId)}) — مجانية للعميل (0 ج.م)`);
+        effects.push(`خصم منح مجانية (${bonusTotalQty} وحدة) بقيمة ${bonusGoodsVal.toLocaleString()} ج.م — مجانية للعميل (0 ج.م)`);
       }
 
       // B. Add Warehouse Movement(s)
@@ -392,13 +445,15 @@ export function ERPProvider({ children }) {
         ...prev.customerLedger
       ];
 
-      // D. Update Sales Rep (totalSales, and if cash to rep, increase repCash)
+      // D. Update Sales Rep (totalSales, deduct repGoods & custodyItems, and if cash to rep, increase repCash)
       const salesReps = prev.salesReps.map(r => {
         if (!rId || r.id !== rId) return r;
         const addedRepCash = (paymentType === 'cash' && cashDestination === 'rep_cash') ? grandTotal : 0;
         return {
           ...r,
           totalSales: r.totalSales + grandTotal,
+          repGoods: Math.max(0, Number(r.repGoods || 0) - totalWarehouseDeduction),
+          custodyItems: adjustCustodyItems(r.custodyItems, allSoldItems, -1),
           repCash: r.repCash + addedRepCash
         };
       });
@@ -501,15 +556,18 @@ export function ERPProvider({ children }) {
     const effects = [];
 
     setData(prev => {
-      // A. Return goods to Warehouse
+      // A. Return goods to Rep Custody (when rep is attached) or Warehouse fallback
       const warehouses = prev.warehouses.map(w => {
         if (w.id !== wId) return w;
-        return {
-          ...w,
-          goodsValue: w.goodsValue + returnTotal
-        };
+        return rId
+          ? { ...w, repGoods: Number(w.repGoods || 0) + returnTotal }
+          : { ...w, goodsValue: Number(w.goodsValue || 0) + returnTotal };
       });
-      effects.push(`إرجاع بضاعة بقيمة ${returnTotal.toLocaleString()} ج.م إلى (${getWarehouseName(wId)})`);
+      if (rId) {
+        effects.push(`إضافة بضاعة مرتجعة بقيمة ${returnTotal.toLocaleString()} ج.م إلى عهدة المندوب (${getRepName(rId)})`);
+      } else {
+        effects.push(`إرجاع بضاعة بقيمة ${returnTotal.toLocaleString()} ج.م إلى (${getWarehouseName(wId)})`);
+      }
 
       // B. Warehouse Movement
       const warehouseMovements = [
@@ -558,12 +616,14 @@ export function ERPProvider({ children }) {
         ...prev.customerLedger
       ];
 
-      // D. Update Sales Rep totalSales
+      // D. Update Sales Rep totalSales & add returned goods back into Rep Custody
       const salesReps = prev.salesReps.map(r => {
         if (!rId || r.id !== rId) return r;
         return {
           ...r,
-          totalSales: Math.max(0, r.totalSales - returnTotal)
+          totalSales: Math.max(0, r.totalSales - returnTotal),
+          repGoods: Number(r.repGoods || 0) + returnTotal,
+          custodyItems: adjustCustodyItems(r.custodyItems, items, +1)
         };
       });
       if (rId) {
@@ -855,6 +915,11 @@ export function ERPProvider({ children }) {
 
   // 5B. REP CUSTODY INVOICE (فاتورة مندوب / تسليم عهدة بالسيارة)
   const createRepCustodyInvoice = (payload) => {
+    if (currentUser?.role === 'sales-rep' || currentUser?.role === 'sales-manager') {
+      notify('عذراً، صرف وتسجيل العهدة متاح للمحاسب ومدير النظام فقط', 'error');
+      return null;
+    }
+
     const {
       number,
       date,
@@ -891,6 +956,7 @@ export function ERPProvider({ children }) {
         return {
           ...r,
           repGoods: r.repGoods + val,
+          custodyItems: adjustCustodyItems(r.custodyItems, items, +1),
           vehicleName: vehicleName || r.vehicleName || '',
           vehicleNumber: vehicleNumber || r.vehicleNumber || ''
         };
@@ -941,8 +1007,17 @@ export function ERPProvider({ children }) {
     return invNumber;
   };
 
+  const canManageWarehouses = () => {
+    const role = currentUser?.role;
+    return role === 'admin' || role === 'accountant' || (typeof role === 'string' && role.startsWith('accounting-'));
+  };
+
   // 5C. MANUAL WAREHOUSE MOVEMENT (صادر فقط) & EDIT MOVEMENT
   const addWarehouseMovement = ({ warehouseId, date, description, qty, value, refNumber }) => {
+    if (!canManageWarehouses()) {
+      notify('عذراً، تعديل المخازن متاح للمحاسب ومدير النظام فقط', 'error');
+      return;
+    }
     const wId = Number(warehouseId);
     const val = Number(value || 0);
     const q = Number(qty || 1);
@@ -973,6 +1048,10 @@ export function ERPProvider({ children }) {
   };
 
   const updateWarehouseMovement = (movementId, updates) => {
+    if (!canManageWarehouses()) {
+      notify('عذراً، تعديل المخازن متاح للمحاسب ومدير النظام فقط', 'error');
+      return;
+    }
     setData(prev => {
       const existing = prev.warehouseMovements.find(m => m.id === movementId);
       if (!existing) return prev;
@@ -1282,6 +1361,10 @@ export function ERPProvider({ children }) {
 
   // CRUD for Entities (Warehouses, Customers, Reps, Companies, Products, Prices, Users)
   const saveWarehouse = (warehouseData) => {
+    if (!canManageWarehouses()) {
+      notify('عذراً، تعديل المخازن متاح للمحاسب ومدير النظام فقط', 'error');
+      return;
+    }
     let blocked = false;
     setData(prev => {
       if (warehouseData.id) {
@@ -1319,6 +1402,10 @@ export function ERPProvider({ children }) {
   };
 
   const deleteWarehouse = (id) => {
+    if (!canManageWarehouses()) {
+      notify('عذراً، تعديل المخازن متاح للمحاسب ومدير النظام فقط', 'error');
+      return;
+    }
     setData(prev => ({ ...prev, warehouses: prev.warehouses.filter(w => w.id !== id) }));
     notify('تم حذف المخزن', 'info');
   };
@@ -1546,12 +1633,19 @@ export function ERPProvider({ children }) {
   };
 
   const saveUser = (userData) => {
+    const normalized = {
+      ...userData,
+      repId: userData.role === 'sales-rep' && userData.repId ? Number(userData.repId) : null,
+      repType: userData.role === 'sales-rep' ? (userData.repType || 'wholesale') : null,
+      phone: userData.phone || '',
+      address: userData.address || '',
+      nationalId: userData.nationalId || '',
+      status: userData.status || 'active',
+      allowedSections: Array.isArray(userData.allowedSections)
+        ? [...new Set(userData.allowedSections)]
+        : null
+    };
     setData(prev => {
-      const normalized = {
-        ...userData,
-        repId: userData.role === 'sales-rep' && userData.repId ? Number(userData.repId) : null,
-        repType: userData.role === 'sales-rep' ? (userData.repType || 'wholesale') : null
-      };
       if (normalized.id) {
         return {
           ...prev,
@@ -1566,10 +1660,17 @@ export function ERPProvider({ children }) {
         role: normalized.role || 'sales-rep',
         repId: normalized.repId,
         repType: normalized.repType,
-        status: normalized.status || 'active'
+        phone: normalized.phone,
+        address: normalized.address,
+        nationalId: normalized.nationalId,
+        allowedSections: normalized.allowedSections,
+        status: normalized.status
       };
       return { ...prev, users: [...prev.users, newU] };
     });
+    if (currentUser && normalized.id && currentUser.id === normalized.id) {
+      setCurrentUser(prev => ({ ...prev, ...normalized }));
+    }
     notify('تم حفظ بيانات المستخدم بنجاح', 'success');
   };
 
