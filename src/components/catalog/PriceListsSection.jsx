@@ -5,7 +5,12 @@ import Modal from '../ui/Modal';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 
 export default function PriceListsSection() {
-  const { data, getCompanyName, savePriceItem, deletePriceItem } = useERP();
+  const { data, currentUser, getCompanyName, savePriceItem, deletePriceItem } = useERP();
+  const canManageProducts =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'accountant' ||
+    (typeof currentUser?.role === 'string' && currentUser.role.startsWith('accounting-'));
+
   const [priceTab, setPriceTab] = useState('wholesale');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [priceModalOpen, setPriceModalOpen] = useState(false);
@@ -45,16 +50,18 @@ export default function PriceListsSection() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <button
-              onClick={() => {
-                setPriceForm({ listType: priceTab, productId: data.products[0]?.id || 1, price: '', expiry: '2026-12-31' });
-                setPriceModalOpen(true);
-              }}
-              className="px-4 py-2 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>إضافة / تعديل سعر صنف</span>
-            </button>
+            {canManageProducts && (
+              <button
+                onClick={() => {
+                  setPriceForm({ listType: priceTab, productId: data.products[0]?.id || 1, price: '', expiry: '2026-12-31' });
+                  setPriceModalOpen(true);
+                }}
+                className="px-4 py-2 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>إضافة / تعديل سعر صنف</span>
+              </button>
+            )}
           </div>
         }
       >
@@ -90,13 +97,13 @@ export default function PriceListsSection() {
                 <th className="p-3">الشركة المنتجة</th>
                 <th className="p-3">{priceTab === 'wholesale' ? 'سعر الجملة' : 'سعر التجزئة'}</th>
                 <th className="p-3">تاريخ الصلاحية</th>
-                <th className="p-3">الإجراءات</th>
+                {canManageProducts && <th className="p-3">الإجراءات</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {currentList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-400 text-sm font-semibold">
+                  <td colSpan={canManageProducts ? 6 : 5} className="p-6 text-center text-slate-400 text-sm font-semibold">
                     لا توجد أصناف مسجلة لهذه الشركة المنتجة في هذه القائمة
                   </td>
                 </tr>
@@ -110,30 +117,32 @@ export default function PriceListsSection() {
                       <td className="p-3 text-xs text-slate-600">{prod ? getCompanyName(prod.companyId) : '-'}</td>
                       <td className="p-3 font-extrabold text-emerald-700">{item.price.toLocaleString()} ج.م</td>
                       <td className="p-3 font-mono text-xs">{item.expiry}</td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              setPriceForm({
-                                listType: priceTab,
-                                productId: item.productId,
-                                price: item.price,
-                                expiry: item.expiry
-                              });
-                              setPriceModalOpen(true);
-                            }}
-                            className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deletePriceItem(item.id, priceTab)}
-                            className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                      {canManageProducts && (
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => {
+                                setPriceForm({
+                                  listType: priceTab,
+                                  productId: item.productId,
+                                  price: item.price,
+                                  expiry: item.expiry
+                                });
+                                setPriceModalOpen(true);
+                              }}
+                              className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deletePriceItem(item.id, priceTab)}
+                              className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -143,7 +152,8 @@ export default function PriceListsSection() {
         </div>
       </SectionCard>
 
-      <Modal
+      {canManageProducts && (
+        <Modal
         isOpen={priceModalOpen}
         onClose={() => setPriceModalOpen(false)}
         title="حفظ سعر صنف في القائمة"
@@ -215,7 +225,8 @@ export default function PriceListsSection() {
             </button>
           </div>
         </form>
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 }

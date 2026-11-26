@@ -6,7 +6,12 @@ import Badge from '../ui/Badge';
 import { Package, PlusCircle, Edit, Trash2 } from 'lucide-react';
 
 export default function ProductsSection() {
-  const { data, getCompanyName, saveProduct, deleteProduct } = useERP();
+  const { data, currentUser, getCompanyName, saveProduct, deleteProduct } = useERP();
+  const canManageProducts =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'accountant' ||
+    (typeof currentUser?.role === 'string' && currentUser.role.startsWith('accounting-'));
+
   const [prodModalOpen, setProdModalOpen] = useState(false);
   const [prodForm, setProdForm] = useState({
     id: null,
@@ -23,16 +28,18 @@ export default function ProductsSection() {
         title="دليل الأصناف والمنتجات الغذائية"
         icon={Package}
         actions={
-          <button
-            onClick={() => {
-              setProdForm({ id: null, name: '', companyId: 1, category: 'عام', expiry: '2026-12-31', unit: 'كرتونة' });
-              setProdModalOpen(true);
-            }}
-            className="px-4 py-2 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>إضافة منتج جديد</span>
-          </button>
+          canManageProducts && (
+            <button
+              onClick={() => {
+                setProdForm({ id: null, name: '', companyId: 1, category: 'عام', expiry: '2026-12-31', unit: 'كرتونة' });
+                setProdModalOpen(true);
+              }}
+              className="px-4 py-2 bg-[#1a237e] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>إضافة منتج جديد</span>
+            </button>
+          )
         }
       >
         <div className="overflow-x-auto">
@@ -45,7 +52,7 @@ export default function ProductsSection() {
                 <th className="p-3">الفئة</th>
                 <th className="p-3">الوحدة</th>
                 <th className="p-3">تاريخ الانتهاء</th>
-                <th className="p-3">الإجراءات</th>
+                {canManageProducts && <th className="p-3">الإجراءات</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -59,27 +66,29 @@ export default function ProductsSection() {
                   </td>
                   <td className="p-3 text-xs">{p.unit || 'كرتونة'}</td>
                   <td className="p-3 font-mono text-xs">{p.expiry}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setProdForm(p);
-                          setProdModalOpen(true);
-                        }}
-                        className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`حذف الصنف ${p.name}؟`)) deleteProduct(p.id);
-                        }}
-                        className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+                  {canManageProducts && (
+                    <td className="p-3">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setProdForm(p);
+                            setProdModalOpen(true);
+                          }}
+                          className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`حذف الصنف ${p.name}؟`)) deleteProduct(p.id);
+                          }}
+                          className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -87,7 +96,8 @@ export default function ProductsSection() {
         </div>
       </SectionCard>
 
-      <Modal
+      {canManageProducts && (
+        <Modal
         isOpen={prodModalOpen}
         onClose={() => setProdModalOpen(false)}
         title={prodForm.id ? 'تعديل بيانات الصنف' : 'إضافة صنف جديد'}
@@ -158,7 +168,8 @@ export default function ProductsSection() {
             </button>
           </div>
         </form>
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 }

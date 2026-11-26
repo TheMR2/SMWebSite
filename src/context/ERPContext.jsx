@@ -279,6 +279,7 @@ export function ERPProvider({ children }) {
       paymentMethod, // 'cash' | 'bank' | 'check'
       cashDestination, // 'main_treasury' | 'warehouse_cash' | 'rep_cash'
       bonuses,
+      bonusItems = [],
       items,
       subtotal,
       totalDiscount,
@@ -294,6 +295,16 @@ export function ERPProvider({ children }) {
     const netGoodsVal = Number(subtotal) - Number(totalDiscount);
     const totalQty = items.reduce((s, item) => s + Number(item.qty || 0), 0);
 
+    const normalizedBonusItems = Array.isArray(bonusItems)
+      ? bonusItems.filter(b => Number(b.qty || 0) > 0)
+      : [];
+    const bonusGoodsVal = normalizedBonusItems.reduce(
+      (s, item) => s + (Number(item.goodsValue) || Number(item.qty || 0) * Number(item.catalogPrice || 0)),
+      0
+    );
+    const bonusTotalQty = normalizedBonusItems.reduce((s, item) => s + Number(item.qty || 0), 0);
+    const totalWarehouseDeduction = netGoodsVal + bonusGoodsVal;
+
     const warehouseObj = data.warehouses.find(w => w.id === wId);
     const companyId = warehouseObj ? warehouseObj.companyId : 1;
 
@@ -303,10 +314,10 @@ export function ERPProvider({ children }) {
     const effects = [];
 
     setData(prev => {
-      // A. Update Warehouse (Deduct goodsValue, and if cash to warehouse, increase warehouse cash)
+      // A. Update Warehouse (Deduct sales goodsValue + free bonus goodsValue, and if cash to warehouse, increase warehouse cash)
       const warehouses = prev.warehouses.map(w => {
         if (w.id !== wId) return w;
-        const updatedGoods = Math.max(0, w.goodsValue - netGoodsVal);
+        const updatedGoods = Math.max(0, w.goodsValue - totalWarehouseDeduction);
         const addedCash = (paymentType === 'cash' && cashDestination === 'warehouse_cash') ? grandTotal : 0;
         return {
           ...w,
@@ -314,20 +325,38 @@ export function ERPProvider({ children }) {
           cash: w.cash + addedCash
         };
       });
-      effects.push(`خصم بضاعة بقيمة ${netGoodsVal.toLocaleString()} ج.م من (${getWarehouseName(wId)})`);
+      effects.push(`خصم بضاعة مبيعات بقيمة ${netGoodsVal.toLocaleString()} ج.م من (${getWarehouseName(wId)})`);
+      if (bonusGoodsVal > 0 || bonusTotalQty > 0) {
+        effects.push(`خصم منح مجانية (${bonusTotalQty} وحدة) بقيمة ${bonusGoodsVal.toLocaleString()} ج.م من (${getWarehouseName(wId)}) — مجانية للعميل (0 ج.م)`);
+      }
 
-      // B. Add Warehouse Movement
-      const warehouseMovements = [
-        {
-          id: prev.warehouseMovements.length + 1,
+      // B. Add Warehouse Movement(s)
+      const newMovements = [];
+      let nextMovementId = prev.warehouseMovements.length + 1;
+      if (normalizedBonusItems.length > 0) {
+        newMovements.push({
+          id: nextMovementId++,
           date: invDate,
           warehouseId: wId,
-          type: 'صرف مبيعات',
+          type: 'صرف منح مجانية',
           refNumber: invNumber,
-          description: `فاتورة مبيعات (${paymentType === 'cash' ? 'كاش' : 'آجل'}) للعميل: ${getCustomerName(custId)}`,
-          qty: totalQty,
-          value: netGoodsVal
-        },
+          description: `منح مجانية / بونص فاتورة (${invNumber}) للعميل: ${getCustomerName(custId)}${bonuses ? ` (${bonuses})` : ''}`,
+          qty: bonusTotalQty,
+          value: bonusGoodsVal
+        });
+      }
+      newMovements.push({
+        id: nextMovementId++,
+        date: invDate,
+        warehouseId: wId,
+        type: 'صرف مبيعات',
+        refNumber: invNumber,
+        description: `فاتورة مبيعات (${paymentType === 'cash' ? 'كاش' : 'آجل'}) للعميل: ${getCustomerName(custId)}`,
+        qty: totalQty,
+        value: netGoodsVal
+      });
+      const warehouseMovements = [
+        ...newMovements,
         ...prev.warehouseMovements
       ];
 
@@ -420,6 +449,8 @@ export function ERPProvider({ children }) {
         paymentType,
         paymentMethod,
         bonuses,
+        bonusItems: normalizedBonusItems.map(item => ({ ...item })),
+        bonusGoodsValue: bonusGoodsVal,
         subtotal: Number(subtotal),
         totalDiscount: Number(totalDiscount),
         taxRate: Number(taxRate),
@@ -1409,7 +1440,16 @@ export function ERPProvider({ children }) {
     notify('تم حذف الشركة ومخزنها التابع', 'info');
   };
 
+  const canManageProducts = () => {
+    const role = currentUser?.role;
+    return role === 'admin' || role === 'accountant' || (typeof role === 'string' && role.startsWith('accounting-'));
+  };
+
   const saveProduct = (productData) => {
+    if (!canManageProducts()) {
+      notify('عذراً، صلاحية إضافة أو تعديل المنتجات مقتصرة على المدير العام والمحاسب فقط', 'error');
+      return;
+    }
     setData(prev => {
       if (productData.id) {
         return {
@@ -1431,11 +1471,19 @@ export function ERPProvider({ children }) {
   };
 
   const deleteProduct = (id) => {
+    if (!canManageProducts()) {
+      notify('عذراً، صلاحية حذف المنتجات مقتصرة على المدير العام والمحاسب فقط', 'error');
+      return;
+    }
     setData(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }));
     notify('تم حذف الصنف', 'info');
   };
 
   const savePriceItem = ({ listType, productId, price, expiry }) => {
+    if (!canManageProducts()) {
+      notify('عذراً، صلاحية تعديل قوائم الأسعار مقتصرة على المدير العام والمحاسب فقط', 'error');
+      return;
+    }
     const pId = Number(productId);
     const val = Number(price);
     setData(prev => {
@@ -1464,6 +1512,10 @@ export function ERPProvider({ children }) {
   };
 
   const deletePriceItem = (id, listType) => {
+    if (!canManageProducts()) {
+      notify('عذراً، صلاحية حذف الأسعار مقتصرة على المدير العام والمحاسب فقط', 'error');
+      return;
+    }
     setData(prev => ({
       ...prev,
       priceLists: {

@@ -11,6 +11,12 @@ const MENU_GROUPS = [
     sectionId: 'dashboard'
   },
   {
+    id: 'rep-custody-item',
+    label: 'العهدة (فاتورة مندوب)',
+    icon: '🚚',
+    sectionId: 'rep-custody-invoice'
+  },
+  {
     id: 'cashier-sub',
     label: 'الخزنة',
     icon: '💰',
@@ -39,7 +45,6 @@ const MENU_GROUPS = [
       { label: 'فاتورة مرتجع', sectionId: 'return-invoice' },
       { label: 'فاتورة سداد عميل', sectionId: 'payment-invoice' },
       { label: 'فاتورة توريد للخزنة', sectionId: 'transfer-invoice' },
-      { label: 'العهدة (فاتورة مندوب)', sectionId: 'rep-custody-invoice' },
       { label: 'سجل الفواتير المجمّع', sectionId: 'invoices-log' }
     ]
   },
