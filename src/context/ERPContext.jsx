@@ -37,6 +37,91 @@ function adjustCustodyItems(existingItems = [], deltaItems = [], sign = 1) {
   });
   return next.filter(i => Number(i.qty || 0) > 0);
 }
+
+function adjustStockBatches(batches, warehouseId, items, sign, meta = {}) {
+  const list = Array.isArray(batches) ? batches.map(b => ({ ...b })) : [];
+  const wId = Number(warehouseId);
+  const deltaItems = Array.isArray(items) ? items : [];
+
+  if (sign < 0) {
+    deltaItems.forEach(item => {
+      let remaining = Number(item?.qty || 0);
+      if (remaining <= 0) return;
+      const pId = Number(item.productId);
+      const preferredUnit = item.unit || '';
+
+      const candidateIndices = [];
+      list.forEach((b, idx) => {
+        if (Number(b.warehouseId) === wId && Number(b.productId) === pId && Number(b.qty || 0) > 0) {
+          candidateIndices.push(idx);
+        }
+      });
+
+      candidateIndices.sort((ia, ib) => {
+        const a = list[ia];
+        const b = list[ib];
+        if (preferredUnit) {
+          const aMatch = (a.unit || '') === preferredUnit ? 0 : 1;
+          const bMatch = (b.unit || '') === preferredUnit ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+        }
+        const expA = a.expiryDate || '9999-99-99';
+        const expB = b.expiryDate || '9999-99-99';
+        if (expA !== expB) return expA.localeCompare(expB);
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        return Number(a.id || 0) - Number(b.id || 0);
+      });
+
+      for (const idx of candidateIndices) {
+        if (remaining <= 0) break;
+        const avail = Number(list[idx].qty || 0);
+        const take = Math.min(avail, remaining);
+        list[idx].qty = avail - take;
+        remaining -= take;
+      }
+    });
+    return list;
+  }
+
+  if (sign > 0) {
+    let nextBatchId = list.reduce((m, b) => Math.max(m, Number(b.id) || 0), 0) + 1;
+    deltaItems.forEach(item => {
+      const q = Number(item?.qty || 0);
+      if (q <= 0) return;
+      const pId = Number(item.productId);
+      const targetUnit = item.unit || 'كارتون';
+
+      const existing = list.find(b =>
+        Number(b.warehouseId) === wId &&
+        Number(b.productId) === pId &&
+        (!item.unit || (b.unit || 'كارتون') === targetUnit)
+      );
+
+      if (existing) {
+        existing.qty = Number(existing.qty || 0) + q;
+      } else {
+        list.unshift({
+          id: nextBatchId++,
+          productId: pId,
+          productName: item.productName || meta.resolveProductName?.(pId) || 'صنف',
+          companyId: meta.companyId ?? null,
+          warehouseId: wId,
+          unit: targetUnit,
+          qty: q,
+          unitCost: Number(item.unitCost ?? item.price ?? 0),
+          expiryDate: meta.expiryDate || '',
+          purchaseInvoiceNumber: meta.refNumber || '',
+          date: meta.date || new Date().toISOString().split('T')[0]
+        });
+      }
+    });
+  }
+
+  return list;
+}
+
 const LEGACY_ACCOUNTANT_USERNAMES = new Set([
   'acc-sales',
   'acc-purchases',
@@ -809,10 +894,17 @@ export function ERPProvider({ children }) {
           items: (items || []).map(item => ({ ...item }))
         };
 
+        const wCompanyId = prev.warehouses.find(w => w.id === wId)?.companyId ?? null;
         return {
           ...prev,
           salesReps,
           warehouses,
+          stockBatches: adjustStockBatches(prev.stockBatches, wId, items, +1, {
+            companyId: wCompanyId,
+            refNumber: retNumber,
+            date: retDate,
+            resolveProductName: getProductName
+          }),
           warehouseMovements,
           invoices: [newInvoice, ...prev.invoices]
         };
@@ -884,6 +976,7 @@ export function ERPProvider({ children }) {
         ...prev,
         warehouses,
         companies,
+        stockBatches: adjustStockBatches(prev.stockBatches, wId, items, -1),
         warehouseMovements,
         companyReturns: [...newCompanyReturns, ...(prev.companyReturns || [])],
         invoices: [newInvoice, ...prev.invoices]
@@ -1204,6 +1297,7 @@ export function ERPProvider({ children }) {
         ...prev,
         warehouses,
         salesReps,
+        stockBatches: adjustStockBatches(prev.stockBatches, wId, items, -1),
         warehouseMovements,
         invoices: [newInvoice, ...prev.invoices]
       };
@@ -1641,7 +1735,14 @@ export function ERPProvider({ children }) {
         ...prev.companyReturns
       ];
 
-      return { ...prev, warehouses, companies, warehouseMovements, companyReturns };
+      return {
+        ...prev,
+        warehouses,
+        companies,
+        stockBatches: adjustStockBatches(prev.stockBatches, wId, [{ productId: pId, qty: q }], -1),
+        warehouseMovements,
+        companyReturns
+      };
     });
 
     notify(

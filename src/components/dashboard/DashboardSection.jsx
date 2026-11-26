@@ -23,7 +23,7 @@ export default function DashboardSection() {
     .reduce((sum, inv) => sum + Number(inv.total || 0), 0);
 
   const totalReturns = data.invoices
-    .filter(inv => inv.type === 'return')
+    .filter(inv => inv.type === 'return' && (!inv.returnDirection || inv.returnDirection === 'customer_to_rep'))
     .reduce((sum, inv) => sum + Number(inv.total || 0), 0);
 
   const totalCollected = data.cash.transactions
@@ -58,11 +58,11 @@ export default function DashboardSection() {
           color="green"
           label="إجمالي المقبوضات والتوريدات"
           value={`${totalCollected.toLocaleString()} ج.م`}
-          subtitle="مبيعات كاش + سداد عملاء + توريدات المخازن"
+          subtitle="مبيعات كاش + تحصيل عملاء + توريدات المناديب"
         />
         <StatCard
           color="orange"
-          label="المدفوعات والمصروفات"
+          label="إجمالي الصادر من الخزنة"
           value={`${totalPaid.toLocaleString()} ج.م`}
           subtitle={`مديونيات العملاء بالسوق: ${totalCustomerDebt.toLocaleString()} ج.م`}
         />
@@ -169,12 +169,14 @@ export default function DashboardSection() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <button
-              onClick={() => setActiveSection('warehouse-overview')}
-              className="px-3.5 py-1.5 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl transition cursor-pointer"
-            >
-              إدارة المخازن بالتفصيل
-            </button>
+            {canAccessSection('warehouse-overview') && (
+              <button
+                onClick={() => setActiveSection('warehouse-overview')}
+                className="px-3.5 py-1.5 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                إدارة المخازن بالتفصيل
+              </button>
+            )}
           </>
         }
       >
@@ -224,12 +226,14 @@ export default function DashboardSection() {
         <SectionCard
           title="💰 آخر عمليات الخزنة"
           actions={
-            <button
-              onClick={() => setActiveSection('cash-balance')}
-              className="text-xs font-bold text-indigo-700 hover:underline cursor-pointer"
-            >
-              عرض السجل الكامل
-            </button>
+            canAccessSection('cash-balance') && (
+              <button
+                onClick={() => setActiveSection('cash-balance')}
+                className="text-xs font-bold text-indigo-700 hover:underline cursor-pointer"
+              >
+                عرض السجل الكامل
+              </button>
+            )
           }
         >
           <div className="overflow-x-auto">
@@ -243,18 +247,30 @@ export default function DashboardSection() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.cash.transactions.slice().reverse().slice(0, 6).map((t, idx) => (
-                  <tr key={t.id || idx} className="hover:bg-slate-50">
-                    <td className="p-2.5 font-mono text-slate-500">{t.date}</td>
-                    <td className="p-2.5">
-                      <Badge variant={t.type === 'incoming' ? 'success' : 'danger'}>
-                        {t.type === 'incoming' ? 'وارد' : 'صادر'}
-                      </Badge>
-                    </td>
-                    <td className="p-2.5 font-medium text-slate-700">{t.description}</td>
-                    <td className="p-2.5 font-bold text-slate-900">{t.amount.toLocaleString()} ج.م</td>
-                  </tr>
-                ))}
+                {data.cash.transactions.slice().reverse().slice(0, 6).map((t, idx) => {
+                  let badgeVariant = 'danger';
+                  let badgeLabel = 'صادر';
+                  if (t.type === 'incoming') {
+                    badgeVariant = 'success';
+                    badgeLabel = 'وارد';
+                  } else if (t.category === 'bank_deposit') {
+                    badgeVariant = 'info';
+                    badgeLabel = 'توريد بنك';
+                  } else if (t.category === 'company_payment') {
+                    badgeVariant = 'warning';
+                    badgeLabel = 'تسديد شركة';
+                  }
+                  return (
+                    <tr key={t.id || idx} className="hover:bg-slate-50">
+                      <td className="p-2.5 font-mono text-slate-500">{t.date}</td>
+                      <td className="p-2.5">
+                        <Badge variant={badgeVariant}>{badgeLabel}</Badge>
+                      </td>
+                      <td className="p-2.5 font-medium text-slate-700">{t.description}</td>
+                      <td className="p-2.5 font-bold text-slate-900">{t.amount.toLocaleString()} ج.م</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -263,12 +279,14 @@ export default function DashboardSection() {
         <SectionCard
           title="🏭 آخر حركات المخازن"
           actions={
-            <button
-              onClick={() => setActiveSection('warehouse-movements')}
-              className="text-xs font-bold text-indigo-700 hover:underline cursor-pointer"
-            >
-              عرض كل الحركات
-            </button>
+            canAccessSection('warehouse-movements') && (
+              <button
+                onClick={() => setActiveSection('warehouse-movements')}
+                className="text-xs font-bold text-indigo-700 hover:underline cursor-pointer"
+              >
+                عرض كل الحركات
+              </button>
+            )
           }
         >
           <div className="overflow-x-auto">

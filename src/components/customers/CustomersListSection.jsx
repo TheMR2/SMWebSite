@@ -26,7 +26,10 @@ export default function CustomersListSection() {
 
   const filteredCustomers = data.customers.filter(c => {
     const matchesType = custFilter === 'all' ? true : c.type === custFilter;
-    const matchesSearch = c.name.toLowerCase().includes(custSearch.toLowerCase());
+    const q = custSearch.trim().toLowerCase();
+    const matchesSearch = !q
+      || (c.name || '').toLowerCase().includes(q)
+      || (c.phone || '').toLowerCase().includes(q);
     return matchesType && matchesSearch;
   });
 
@@ -69,7 +72,7 @@ export default function CustomersListSection() {
             type="text"
             value={custSearch}
             onChange={(e) => setCustSearch(e.target.value)}
-            placeholder="ابحث باسم العميل..."
+            placeholder="ابحث باسم العميل أو رقم الهاتف..."
             className="w-full pr-10 pl-4 py-2 border border-slate-300 rounded-xl text-sm"
           />
         </div>
@@ -88,63 +91,71 @@ export default function CustomersListSection() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredCustomers.map((c, idx) => (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="p-3">{idx + 1}</td>
-                  <td className="p-3 font-bold text-slate-800">
-                    {c.name}
-                    <span className="block text-[11px] text-slate-400 font-normal">
-                      {c.address} {c.phone ? `• ${c.phone}` : ''}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="info">{c.type === 'wholesale' ? 'جملة' : 'تجزئة'}</Badge>
-                  </td>
-                  <td className="p-3 font-semibold text-emerald-700">{Number(c.monthlyLimit || 0).toLocaleString()} ج.م</td>
-                  <td className="p-3 font-semibold text-indigo-700">{Number(c.annualLimit || 0).toLocaleString()} ج.م</td>
-                  <td className="p-3">
-                    <Badge variant={c.currentBalance > 0 ? 'danger' : 'success'}>
-                      {Number(c.currentBalance || 0).toLocaleString()} ج.م
-                    </Badge>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setSelectedCustomerId(c.id);
-                          setActiveSection('customer-account');
-                        }}
-                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-lg text-xs font-bold cursor-pointer"
-                      >
-                        عرض الحساب
-                      </button>
-                      {canManageCustomers && (
-                        <>
-                          <button
-                            onClick={() => {
-                              setEditingCustomer(c);
-                              setCustModalOpen(true);
-                            }}
-                            className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
-                            title="تعديل"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`حذف العميل ${c.name}؟`)) deleteCustomer(c.id);
-                            }}
-                            className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
-                            title="حذف"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
+              {filteredCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="p-6 text-center text-slate-400">
+                    لا يوجد عملاء مطابقون لبحثك
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCustomers.map((c, idx) => (
+                  <tr key={c.id} className="hover:bg-slate-50">
+                    <td className="p-3">{idx + 1}</td>
+                    <td className="p-3 font-bold text-slate-800">
+                      {c.name}
+                      <span className="block text-[11px] text-slate-400 font-normal">
+                        {c.address} {c.phone ? `• ${c.phone}` : ''}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="info">{c.type === 'wholesale' ? 'جملة' : 'تجزئة'}</Badge>
+                    </td>
+                    <td className="p-3 font-semibold text-emerald-700">{Number(c.monthlyLimit || 0).toLocaleString()} ج.م</td>
+                    <td className="p-3 font-semibold text-indigo-700">{Number(c.annualLimit || 0).toLocaleString()} ج.م</td>
+                    <td className="p-3">
+                      <Badge variant={c.currentBalance > 0 ? 'danger' : 'success'}>
+                        {Number(c.currentBalance || 0).toLocaleString()} ج.م
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setSelectedCustomerId(c.id);
+                            setActiveSection('customer-account');
+                          }}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-lg text-xs font-bold cursor-pointer"
+                        >
+                          عرض الحساب
+                        </button>
+                        {canManageCustomers && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingCustomer(c);
+                                setCustModalOpen(true);
+                              }}
+                              className="p-1.5 bg-amber-50 text-amber-700 rounded-lg cursor-pointer"
+                              title="تعديل"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`حذف العميل ${c.name}؟`)) deleteCustomer(c.id);
+                              }}
+                              className="p-1.5 bg-rose-50 text-rose-700 rounded-lg cursor-pointer"
+                              title="حذف"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

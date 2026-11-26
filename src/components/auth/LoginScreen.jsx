@@ -55,7 +55,7 @@ export default function LoginScreen() {
                 type="text"
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                placeholder="أدخل اسم المستخدم (مثال: admin)"
+                placeholder="أدخل اسم المستخدم"
                 className="w-full pr-10 pl-4 py-2.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#1a237e] transition text-sm"
               />
             </div>
@@ -71,7 +71,7 @@ export default function LoginScreen() {
                 type="password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                placeholder="أدخل كلمة المرور (1234)"
+                placeholder="أدخل كلمة المرور"
                 className="w-full pr-10 pl-4 py-2.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#1a237e] transition text-sm"
               />
             </div>
@@ -92,29 +92,31 @@ export default function LoginScreen() {
           </button>
         </form>
 
-        <div className="mt-6 pt-5 border-t border-slate-200">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 mb-3">
-            <ShieldCheck className="w-4 h-4 text-indigo-700" />
-            <span>دخول سريع بحسابات المستخدمين (اضغط للتجربة المباشرة):</span>
+        {import.meta.env.DEV && (
+          <div className="mt-6 pt-5 border-t border-slate-200">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 mb-3">
+              <ShieldCheck className="w-4 h-4 text-indigo-700" />
+              <span>دخول سريع بحسابات المستخدمين (اضغط للتجربة المباشرة):</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {data.users.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => quickLogin(u)}
+                  className="text-right p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition flex flex-col cursor-pointer group"
+                >
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">
+                    {u.name}
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono" dir="ltr">
+                    {u.username} / {u.password}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {data.users.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => quickLogin(u)}
-                className="text-right p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition flex flex-col cursor-pointer group"
-              >
-                <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">
-                  {u.name}
-                </span>
-                <span className="text-[11px] text-slate-500 font-mono" dir="ltr">
-                  {u.username} / {u.password}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
