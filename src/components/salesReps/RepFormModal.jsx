@@ -9,7 +9,10 @@ export default function RepFormModal({ isOpen, onClose, initialData }) {
     name: '',
     type: 'wholesale',
     phone: '',
-    warehouseId: 1,
+    address: '',
+    creditLimit: 50000,
+    debtDueDate: '',
+    warehouseId: '',
     totalSales: 0,
     repGoods: 0,
     repCash: 0
@@ -17,14 +20,23 @@ export default function RepFormModal({ isOpen, onClose, initialData }) {
 
   useEffect(() => {
     if (initialData) {
-      setRepForm(initialData);
+      setRepForm({
+        ...initialData,
+        address: initialData.address || '',
+        creditLimit: initialData.creditLimit ?? 50000,
+        debtDueDate: initialData.debtDueDate || '',
+        warehouseId: initialData.warehouseId ? String(initialData.warehouseId) : ''
+      });
     } else {
       setRepForm({
         id: null,
         name: '',
         type: 'wholesale',
         phone: '',
-        warehouseId: 1,
+        address: '',
+        creditLimit: 50000,
+        debtDueDate: '',
+        warehouseId: '',
         totalSales: 0,
         repGoods: 0,
         repCash: 0
@@ -38,7 +50,10 @@ export default function RepFormModal({ isOpen, onClose, initialData }) {
       alert('يرجى إدخال اسم المندوب');
       return;
     }
-    saveRep(repForm);
+    saveRep({
+      ...repForm,
+      warehouseId: repForm.warehouseId ? Number(repForm.warehouseId) : null
+    });
     onClose();
   };
 
@@ -81,12 +96,43 @@ export default function RepFormModal({ isOpen, onClose, initialData }) {
           </div>
         </div>
         <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1">العنوان:</label>
+          <input
+            type="text"
+            value={repForm.address || ''}
+            onChange={(e) => setRepForm({ ...repForm, address: e.target.value })}
+            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">الحد الائتماني للعهدة (ج.م):</label>
+            <input
+              type="number"
+              min="0"
+              value={repForm.creditLimit}
+              onChange={(e) => setRepForm({ ...repForm, creditLimit: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">تاريخ استحقاق المديونيات:</label>
+            <input
+              type="date"
+              value={repForm.debtDueDate || ''}
+              onChange={(e) => setRepForm({ ...repForm, debtDueDate: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
+            />
+          </div>
+        </div>
+        <div>
           <label className="block text-xs font-bold text-slate-700 mb-1">المخزن المرتبط به:</label>
           <select
-            value={repForm.warehouseId || 1}
-            onChange={(e) => setRepForm({ ...repForm, warehouseId: Number(e.target.value) })}
+            value={repForm.warehouseId}
+            onChange={(e) => setRepForm({ ...repForm, warehouseId: e.target.value })}
             className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold"
           >
+            <option value="">مفتوح (جميع المخازن)</option>
             {data.warehouses.map(w => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}

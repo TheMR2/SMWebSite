@@ -4,6 +4,7 @@ import {
   ROLE_PERMISSIONS,
   PAYMENT_METHODS,
   EXPENSE_PAYMENT_TYPES,
+  EXPENSE_CATEGORIES,
   getDefaultSectionsForRole
 } from '../data/initialData';
 
@@ -133,7 +134,10 @@ function migrateLegacyState(parsed) {
     if (Array.isArray(updated.salesReps)) {
       updated.salesReps = updated.salesReps.map(r => ({
         ...r,
-        warehouseId: resolveWarehouseId(r.warehouseId),
+        warehouseId: r.warehouseId ? resolveWarehouseId(r.warehouseId) : null,
+        address: r.address || '',
+        creditLimit: Number(r.creditLimit ?? 50000),
+        debtDueDate: r.debtDueDate || '',
         custodyItems: Array.isArray(r.custodyItems) ? r.custodyItems : []
       }));
     }
@@ -152,6 +156,19 @@ function migrateLegacyState(parsed) {
         ret.warehouseId != null ? { ...ret, warehouseId: resolveWarehouseId(ret.warehouseId) } : ret
       );
     }
+  }
+
+  if (!Array.isArray(updated.stockBatches)) {
+    updated.stockBatches = createInitialData().stockBatches;
+  }
+  if (!Array.isArray(updated.priceHistory)) {
+    updated.priceHistory = [];
+  }
+  if (Array.isArray(updated.expenses)) {
+    updated.expenses = updated.expenses.map(exp => ({
+      ...exp,
+      category: exp.category || (EXPENSE_CATEGORIES[exp.type] ? exp.type : 'petty_cash')
+    }));
   }
 
   return updated;
@@ -211,6 +228,33 @@ export function ERPProvider({ children }) {
     }
     return data.salesReps.find(r => r.type === currentUser.repType) || data.salesReps[0] || null;
   }, [currentUser, data.salesReps]);
+
+  const expiryAlerts = useMemo(() => {
+    const batches = Array.isArray(data.stockBatches) ? data.stockBatches : [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+
+    return batches
+      .filter(b => Number(b.qty || 0) > 0 && b.expiryDate)
+      .map(b => {
+        const expDate = new Date(b.expiryDate);
+        expDate.setHours(0, 0, 0, 0);
+        const daysRemaining = Math.ceil((expDate.getTime() - todayMs) / 86400000);
+        const severity = daysRemaining <= 0 ? 'expired' : daysRemaining <= 30 ? 'critical' : 'warning';
+        const comp = data.companies.find(c => c.id === Number(b.companyId));
+        const wh = data.warehouses.find(w => w.id === Number(b.warehouseId));
+        return {
+          ...b,
+          daysRemaining,
+          severity,
+          companyName: comp ? comp.name : 'غير معروف',
+          warehouseName: wh ? wh.name : 'غير محدد'
+        };
+      })
+      .filter(a => a.daysRemaining <= 60)
+      .sort((a, b) => a.daysRemaining - b.daysRemaining);
+  }, [data.stockBatches, data.companies, data.warehouses]);
 
   useEffect(() => {
     try {
@@ -330,7 +374,8 @@ export function ERPProvider({ children }) {
       totalDiscount,
       taxRate,
       taxAmount,
-      total
+      total,
+      dueDate
     } = payload;
 
     const custId = Number(customerId);
@@ -511,6 +556,7 @@ export function ERPProvider({ children }) {
         taxRate: Number(taxRate),
         taxAmount: Number(taxAmount),
         total: grandTotal,
+        dueDate: paymentType === 'credit' ? (dueDate || '') : '',
         paymentStatus: paymentType === 'cash' ? 'paid' : 'unpaid',
         items: items.map(item => ({ ...item }))
       };
@@ -686,6 +732,166 @@ export function ERPProvider({ children }) {
     });
 
     notify(`تم حفظ فاتورة المرتجع (${retNumber}) وتحديث المخزن والحسابات!`, 'success', effects);
+  };
+
+  // 2B. ACCOUNTANT RETURN INVOICE (مرتجع من المندوب للمخزن أو من المخزن للشركة المنتجة)
+  const createAccountantReturnInvoice = (payload) => {
+    const {
+      direction, // 'rep_to_warehouse' | 'warehouse_to_company'
+      number,
+      date,
+      repId,
+      companyId,
+      warehouseId,
+      returnReason,
+      items,
+      total
+    } = payload;
+
+    const returnTotal = Number(total || 0);
+    const totalQty = (items || []).reduce((s, item) => s + Number(item.qty || 0), 0);
+    const retDate = date || new Date().toISOString().split('T')[0];
+    const retNumber = (number || '').trim() || `RET-${100 + data.invoices.length + 1}`;
+    const effects = [];
+
+    if (direction === 'rep_to_warehouse') {
+      const rId = Number(repId);
+      const wId = Number(warehouseId);
+
+      setData(prev => {
+        const salesReps = prev.salesReps.map(r => {
+          if (r.id !== rId) return r;
+          return {
+            ...r,
+            repGoods: Math.max(0, Number(r.repGoods || 0) - returnTotal),
+            custodyItems: adjustCustodyItems(r.custodyItems, items, -1)
+          };
+        });
+        effects.push(`خصم بضاعة بقيمة ${returnTotal.toLocaleString()} ج.م من عهدة المندوب (${getRepName(rId)})`);
+
+        const warehouses = prev.warehouses.map(w => {
+          if (w.id !== wId) return w;
+          return {
+            ...w,
+            goodsValue: Number(w.goodsValue || 0) + returnTotal,
+            repGoods: Math.max(0, Number(w.repGoods || 0) - returnTotal)
+          };
+        });
+        effects.push(`إرجاع بضاعة بقيمة ${returnTotal.toLocaleString()} ج.م إلى (${getWarehouseName(wId)})`);
+
+        const warehouseMovements = [
+          {
+            id: prev.warehouseMovements.length + 1,
+            date: retDate,
+            warehouseId: wId,
+            type: 'مرتجع من مندوب للمخزن',
+            refNumber: retNumber,
+            description: `مرتجع عهدة من المندوب ${getRepName(rId)} (${returnReason || 'مرتجع'})`,
+            qty: totalQty,
+            value: returnTotal
+          },
+          ...prev.warehouseMovements
+        ];
+
+        const newInvoice = {
+          id: prev.invoices.length + 1,
+          type: 'return',
+          returnDirection: 'rep_to_warehouse',
+          number: retNumber,
+          date: retDate,
+          repId: rId,
+          repName: getRepName(rId),
+          warehouseId: wId,
+          warehouseName: getWarehouseName(wId),
+          returnReason: returnReason || '',
+          total: returnTotal,
+          paymentStatus: 'paid',
+          items: (items || []).map(item => ({ ...item }))
+        };
+
+        return {
+          ...prev,
+          salesReps,
+          warehouses,
+          warehouseMovements,
+          invoices: [newInvoice, ...prev.invoices]
+        };
+      });
+
+      notify(`تم حفظ فاتورة مرتجع من المندوب للمخزن (${retNumber}) بنجاح!`, 'success', effects);
+      return retNumber;
+    }
+
+    // warehouse_to_company
+    const cId = Number(companyId);
+    const linkedW = data.warehouses.find(w => Number(w.companyId) === cId);
+    const wId = Number(warehouseId || linkedW?.id || data.warehouses[0]?.id || 1);
+
+    setData(prev => {
+      const warehouses = prev.warehouses.map(w =>
+        w.id === wId ? { ...w, goodsValue: Math.max(0, Number(w.goodsValue || 0) - returnTotal) } : w
+      );
+      effects.push(`خصم بضاعة بقيمة ${returnTotal.toLocaleString()} ج.م من (${getWarehouseName(wId)})`);
+
+      const companies = prev.companies.map(c =>
+        c.id === cId ? { ...c, totalPurchases: Math.max(0, Number(c.totalPurchases || 0) - returnTotal) } : c
+      );
+      effects.push(`تنزيل ${returnTotal.toLocaleString()} ج.م من حساب مشتريات (${getCompanyName(cId)})`);
+
+      const warehouseMovements = [
+        {
+          id: prev.warehouseMovements.length + 1,
+          date: retDate,
+          warehouseId: wId,
+          type: 'مرتجع من المخزن للشركة',
+          refNumber: retNumber,
+          description: `مرتجع بضاعة إلى ${getCompanyName(cId)} (${returnReason || 'مرتجع'})`,
+          qty: totalQty,
+          value: returnTotal
+        },
+        ...prev.warehouseMovements
+      ];
+
+      let nextCompRetId = (prev.companyReturns || []).length + 1;
+      const newCompanyReturns = (items || []).map(it => ({
+        id: nextCompRetId++,
+        date: retDate,
+        companyId: cId,
+        warehouseId: wId,
+        productId: Number(it.productId),
+        qty: Number(it.qty || 0),
+        value: Number(it.total || 0),
+        reason: returnReason || 'مرتجع للشركة المنتجة'
+      }));
+
+      const newInvoice = {
+        id: prev.invoices.length + 1,
+        type: 'return',
+        returnDirection: 'warehouse_to_company',
+        number: retNumber,
+        date: retDate,
+        companyId: cId,
+        companyName: getCompanyName(cId),
+        warehouseId: wId,
+        warehouseName: getWarehouseName(wId),
+        returnReason: returnReason || '',
+        total: returnTotal,
+        paymentStatus: 'paid',
+        items: (items || []).map(item => ({ ...item }))
+      };
+
+      return {
+        ...prev,
+        warehouses,
+        companies,
+        warehouseMovements,
+        companyReturns: [...newCompanyReturns, ...(prev.companyReturns || [])],
+        invoices: [newInvoice, ...prev.invoices]
+      };
+    });
+
+    notify(`تم حفظ فاتورة مرتجع للشركة المنتجة (${retNumber}) بنجاح!`, 'success', effects);
+    return retNumber;
   };
 
   // 3. INTERCONNECTED PAYMENT INVOICE (سند تحصيل / سداد من عميل يسمّع في حساب العميل والخزنة أو عهدة المندوب)
@@ -1140,14 +1346,73 @@ export function ERPProvider({ children }) {
   };
 
   // 6. CASHIER OPERATIONS & EXPENSES
-  const addCashOperation = ({ type, amount, description, date }) => {
+  const addCashOperation = ({
+    type,
+    amount,
+    description,
+    date,
+    expenseCategory,
+    companyId,
+    bankName
+  }) => {
+    if (type === 'incoming') {
+      notify('عذراً، حركات الوارد اليدوية ملغاة — التوريد للخزنة يتم عبر المناديب فقط', 'error');
+      return;
+    }
+
     const val = Number(amount);
     const opDate = date || new Date().toISOString().split('T')[0];
 
+    let summaryMsg = '';
     setData(prev => {
-      const newBal = type === 'incoming' ? prev.cash.balance + val : prev.cash.balance - val;
+      const newBal = prev.cash.balance - val;
+      let nextExpenses = prev.expenses;
+      let nextCompanies = prev.companies;
+      let txCategory = 'manual';
+      let txDesc = description || '';
+
+      if (type === 'outgoing') {
+        const catKey = expenseCategory || 'other';
+        const catLabel = EXPENSE_CATEGORIES[catKey] || catKey;
+        txCategory = 'expense';
+        txDesc = `صادر (${catLabel}): ${description}`;
+        const nextExpId = prev.expenses.length
+          ? Math.max(...prev.expenses.map(e => Number(e.id) || 0)) + 1
+          : 1;
+        nextExpenses = [
+          {
+            id: nextExpId,
+            date: opDate,
+            category: catKey,
+            type: catKey,
+            description,
+            amount: val
+          },
+          ...prev.expenses
+        ];
+        summaryMsg = `تم تسجيل صادر (${catLabel}) بقيمة ${val.toLocaleString()} ج.م وتحديث الخزنة وقائمة المصروفات`;
+      } else if (type === 'company_payment') {
+        const cId = Number(companyId);
+        const compName = getCompanyName(cId);
+        txCategory = 'company_payment';
+        txDesc = `تسديد للشركة المنتجة (${compName})${description ? ` - ${description}` : ''}`;
+        nextCompanies = prev.companies.map(c =>
+          c.id === cId
+            ? { ...c, paidToCompany: Number(c.paidToCompany || 0) + val }
+            : c
+        );
+        summaryMsg = `تم تسجيل تسديد للشركة المنتجة (${compName}) بقيمة ${val.toLocaleString()} ج.م`;
+      } else if (type === 'bank_deposit') {
+        const bank = (bankName || '').trim() || 'البنك';
+        txCategory = 'bank_deposit';
+        txDesc = `توريد للبنك (${bank})${description ? ` - ${description}` : ''}`;
+        summaryMsg = `تم تسجيل توريد للبنك (${bank}) بقيمة ${val.toLocaleString()} ج.م`;
+      }
+
       return {
         ...prev,
+        expenses: nextExpenses,
+        companies: nextCompanies,
         cash: {
           ...prev.cash,
           balance: newBal,
@@ -1156,9 +1421,12 @@ export function ERPProvider({ children }) {
             {
               id: prev.cash.transactions.length + 1,
               date: opDate,
-              type,
-              category: 'manual',
-              description,
+              type: 'outgoing',
+              category: txCategory,
+              expenseCategory: type === 'outgoing' ? (expenseCategory || 'other') : undefined,
+              companyId: type === 'company_payment' ? Number(companyId) : undefined,
+              bankName: type === 'bank_deposit' ? (bankName || '').trim() : undefined,
+              description: txDesc,
               amount: val,
               balance: newBal
             }
@@ -1167,7 +1435,7 @@ export function ERPProvider({ children }) {
       };
     });
 
-    notify(`تم تسجيل حركة الخزنة (${type === 'incoming' ? 'وارد' : 'صادر'}) بقيمة ${val.toLocaleString()} ج.م`, 'success');
+    notify(summaryMsg || `تم تسجيل حركة الخزنة بقيمة ${val.toLocaleString()} ج.م`, 'success');
   };
 
   const addExpense = ({ type, date, description, amount }) => {
@@ -1241,7 +1509,93 @@ export function ERPProvider({ children }) {
     notify('تم حذف المصروف ورد المبلغ للخزنة', 'info');
   };
 
-  // 7. PURCHASES & COMPANY RETURNS (مرتجعات للشركات المنتجة وتحديث الأسعار)
+  // 7. PURCHASES & COMPANY RETURNS (فاتورة مشتريات، مرتجعات للشركات المنتجة وتحديث الأسعار)
+  const createPurchaseInvoice = ({ number, date, companyId, warehouseId, items, total, notes }) => {
+    if (!canAccessSection('purchase-invoice')) {
+      notify('عذراً، صلاحية تسجيل فواتير المشتريات متاحة للمحاسب ومدير النظام فقط', 'error');
+      return null;
+    }
+
+    const cId = Number(companyId);
+    const linkedWarehouse = data.warehouses.find(w => Number(w.companyId) === cId);
+    const wId = Number(warehouseId || linkedWarehouse?.id || data.warehouses[0]?.id || 1);
+    const grandTotal = Number(total || 0);
+    const totalQty = (items || []).reduce((s, item) => s + Number(item.qty || 0), 0);
+    const invNumber = (number || '').trim() || `PUR-${500 + data.invoices.length + 1}`;
+    const invDate = date || new Date().toISOString().split('T')[0];
+    const effects = [];
+
+    setData(prev => {
+      const warehouses = prev.warehouses.map(w =>
+        w.id === wId ? { ...w, goodsValue: Number(w.goodsValue || 0) + grandTotal } : w
+      );
+      effects.push(`إضافة بضاعة بقيمة ${grandTotal.toLocaleString()} ج.م إلى (${getWarehouseName(wId)})`);
+
+      const companies = prev.companies.map(c =>
+        c.id === cId ? { ...c, totalPurchases: Number(c.totalPurchases || 0) + grandTotal } : c
+      );
+      effects.push(`تحديث إجمالي مشتريات (${getCompanyName(cId)})`);
+
+      let nextBatchId = (prev.stockBatches || []).reduce((m, b) => Math.max(m, Number(b.id) || 0), 0) + 1;
+      const newBatches = (items || [])
+        .filter(it => Number(it.qty || 0) > 0)
+        .map(it => ({
+          id: nextBatchId++,
+          productId: Number(it.productId),
+          productName: it.productName || getProductName(it.productId),
+          companyId: cId,
+          warehouseId: wId,
+          unit: it.unit || 'كارتون',
+          qty: Number(it.qty || 0),
+          unitCost: Number(it.unitCost || 0),
+          expiryDate: it.expiryDate || '',
+          purchaseInvoiceNumber: invNumber,
+          date: invDate
+        }));
+
+      const warehouseMovements = [
+        {
+          id: prev.warehouseMovements.length + 1,
+          date: invDate,
+          warehouseId: wId,
+          type: 'فاتورة مشتريات',
+          refNumber: invNumber,
+          description: `فاتورة مشتريات من ${getCompanyName(cId)}${notes ? ` - ${notes}` : ''}`,
+          qty: totalQty,
+          value: grandTotal
+        },
+        ...prev.warehouseMovements
+      ];
+
+      const newInvoice = {
+        id: prev.invoices.length + 1,
+        type: 'purchase',
+        number: invNumber,
+        date: invDate,
+        companyId: cId,
+        companyName: getCompanyName(cId),
+        warehouseId: wId,
+        warehouseName: getWarehouseName(wId),
+        total: grandTotal,
+        paymentStatus: 'unpaid',
+        notes: notes || '',
+        items: (items || []).map(item => ({ ...item }))
+      };
+
+      return {
+        ...prev,
+        warehouses,
+        companies,
+        stockBatches: [...newBatches, ...(prev.stockBatches || [])],
+        warehouseMovements,
+        invoices: [newInvoice, ...prev.invoices]
+      };
+    });
+
+    notify(`تم حفظ فاتورة المشتريات (${invNumber}) وتوريد البضاعة للمخزن بنجاح!`, 'success', effects);
+    return invNumber;
+  };
+
   const addCompanyReturn = ({ companyId, warehouseId, productId, qty, value, reason, date }) => {
     const cId = Number(companyId);
     const wId = Number(warehouseId);
@@ -1412,22 +1766,24 @@ export function ERPProvider({ children }) {
 
   const saveCustomer = (customerData) => {
     setData(prev => {
-      if (customerData.id) {
-        return {
-          ...prev,
-          customers: prev.customers.map(c => c.id === customerData.id ? { ...c, ...customerData } : c)
-        };
-      }
-      const newC = {
-        id: prev.customers.length ? Math.max(...prev.customers.map(c => c.id)) + 1 : 1,
-        name: customerData.name,
-        type: customerData.type || 'wholesale',
-        monthlyLimit: Number(customerData.monthlyLimit || 50000),
-        annualLimit: Number(customerData.annualLimit || 500000),
+      const normalized = {
+        ...customerData,
+        monthlyLimit: Number(customerData.monthlyLimit || 0),
+        annualLimit: Number(customerData.annualLimit || 0),
         currentBalance: Number(customerData.currentBalance || 0),
         repId: customerData.repId ? Number(customerData.repId) : null,
         address: customerData.address || '',
         phone: customerData.phone || ''
+      };
+      if (normalized.id) {
+        return {
+          ...prev,
+          customers: prev.customers.map(c => c.id === normalized.id ? { ...c, ...normalized } : c)
+        };
+      }
+      const newC = {
+        id: prev.customers.length ? Math.max(...prev.customers.map(c => c.id)) + 1 : 1,
+        ...normalized
       };
       return { ...prev, customers: [...prev.customers, newC] };
     });
@@ -1441,21 +1797,28 @@ export function ERPProvider({ children }) {
 
   const saveRep = (repData) => {
     setData(prev => {
-      if (repData.id) {
+      const normalized = {
+        ...repData,
+        type: repData.type || 'wholesale',
+        phone: repData.phone || '',
+        address: repData.address || '',
+        creditLimit: Number(repData.creditLimit || 0),
+        debtDueDate: repData.debtDueDate || '',
+        warehouseId: repData.warehouseId ? Number(repData.warehouseId) : null
+      };
+      if (normalized.id) {
         return {
           ...prev,
-          salesReps: prev.salesReps.map(r => r.id === repData.id ? { ...r, ...repData } : r)
+          salesReps: prev.salesReps.map(r => r.id === normalized.id ? { ...r, ...normalized } : r)
         };
       }
       const newR = {
         id: prev.salesReps.length ? Math.max(...prev.salesReps.map(r => r.id)) + 1 : 1,
-        name: repData.name,
-        type: repData.type || 'wholesale',
-        phone: repData.phone || '',
-        warehouseId: Number(repData.warehouseId || 1),
+        ...normalized,
         totalSales: Number(repData.totalSales || 0),
         repGoods: Number(repData.repGoods || 0),
-        repCash: Number(repData.repCash || 0)
+        repCash: Number(repData.repCash || 0),
+        custodyItems: Array.isArray(repData.custodyItems) ? repData.custodyItems : []
       };
       return { ...prev, salesReps: [...prev.salesReps, newR] };
     });
@@ -1573,29 +1936,43 @@ export function ERPProvider({ children }) {
     }
     const pId = Number(productId);
     const val = Number(price);
+    const today = new Date().toISOString().split('T')[0];
     setData(prev => {
       const list = prev.priceLists[listType] || [];
       const existing = list.find(item => item.productId === pId);
+      const oldPrice = existing ? Number(existing.price) : null;
       let updatedList;
       if (existing) {
         updatedList = list.map(item =>
-          item.productId === pId ? { ...item, price: val, expiry: expiry || item.expiry } : item
+          item.productId === pId
+            ? { ...item, price: val, expiry: expiry || item.expiry, updatedAt: today }
+            : item
         );
       } else {
         updatedList = [
           ...list,
-          { id: list.length + 1, productId: pId, price: val, expiry: expiry || '2026-12-31' }
+          { id: list.length + 1, productId: pId, price: val, expiry: expiry || '2026-12-31', updatedAt: today }
         ];
       }
+      const nextHistId = (prev.priceHistory || []).length + 1;
+      const historyEntry = {
+        id: nextHistId,
+        date: today,
+        listType,
+        productId: pId,
+        oldPrice,
+        newPrice: val
+      };
       return {
         ...prev,
         priceLists: {
           ...prev.priceLists,
           [listType]: updatedList
-        }
+        },
+        priceHistory: [historyEntry, ...(prev.priceHistory || [])]
       };
     });
-    notify(`تم تحديث السعر في قائمة (${listType === 'wholesale' ? 'الجملة' : 'التجزئة'}) بنجاح`, 'success');
+    notify(`تم تحديث السعر في قائمة (${listType === 'wholesale' ? 'الجملة' : 'التجزئة'}) من تاريخ اليوم فقط دون المساس بالبضاعة القديمة`, 'success');
   };
 
   const deletePriceItem = (id, listType) => {
@@ -1616,10 +1993,12 @@ export function ERPProvider({ children }) {
   const bulkUpdatePrices = ({ listType, percentage }) => {
     const pct = Number(percentage);
     if (isNaN(pct) || pct === 0) return;
+    const today = new Date().toISOString().split('T')[0];
     setData(prev => {
       const updated = prev.priceLists[listType].map(item => ({
         ...item,
-        price: Math.round(item.price * (1 + pct / 100) * 100) / 100
+        price: Math.round(item.price * (1 + pct / 100) * 100) / 100,
+        updatedAt: today
       }));
       return {
         ...prev,
@@ -1629,7 +2008,7 @@ export function ERPProvider({ children }) {
         }
       };
     });
-    notify(`تم تحديث أسعار قائمة (${listType === 'wholesale' ? 'الجملة' : 'التجزئة'}) بنسبة ${pct}%`, 'success');
+    notify(`تم تحديث أسعار قائمة (${listType === 'wholesale' ? 'الجملة' : 'التجزئة'}) بنسبة ${pct}% على الجديد فقط`, 'success');
   };
 
   const saveUser = (userData) => {
@@ -1639,7 +2018,6 @@ export function ERPProvider({ children }) {
       repType: userData.role === 'sales-rep' ? (userData.repType || 'wholesale') : null,
       phone: userData.phone || '',
       address: userData.address || '',
-      nationalId: userData.nationalId || '',
       status: userData.status || 'active',
       allowedSections: Array.isArray(userData.allowedSections)
         ? [...new Set(userData.allowedSections)]
@@ -1662,7 +2040,6 @@ export function ERPProvider({ children }) {
         repType: normalized.repType,
         phone: normalized.phone,
         address: normalized.address,
-        nationalId: normalized.nationalId,
         allowedSections: normalized.allowedSections,
         status: normalized.status
       };
@@ -1704,6 +2081,7 @@ export function ERPProvider({ children }) {
         setSelectedRepId,
         notifications,
         dismissNotification,
+        expiryAlerts,
         notify,
         login,
         logout,
@@ -1716,9 +2094,11 @@ export function ERPProvider({ children }) {
         getPaymentMethodLabel,
         createSalesInvoice,
         createReturnInvoice,
+        createAccountantReturnInvoice,
         createPaymentInvoice,
         createTransferInvoice,
         createRepCustodyInvoice,
+        createPurchaseInvoice,
         dispatchGoodsToRep,
         addWarehouseMovement,
         updateWarehouseMovement,

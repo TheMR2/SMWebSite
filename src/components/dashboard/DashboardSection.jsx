@@ -8,6 +8,8 @@ import { FilePlus2, ArrowRightLeft, Wallet, Users, Warehouse, Eye } from 'lucide
 export default function DashboardSection() {
   const {
     data,
+    currentUser,
+    expiryAlerts,
     setActiveSection,
     setSelectedWarehouseId,
     canAccessSection,
@@ -71,6 +73,40 @@ export default function DashboardSection() {
           subtitle={`الرصيد الافتتاحي: ${data.cash.openingBalance.toLocaleString()} ج.م`}
         />
       </div>
+
+      {currentUser?.role !== 'sales-rep' && expiryAlerts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="text-sm font-extrabold text-amber-950">
+              ⚠️ تنبيهات صلاحية البضاعة ({expiryAlerts.length} صنف قريب الانتهاء أو منتهي)
+            </div>
+            {canAccessSection('purchase-invoice') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('purchase-invoice')}
+                className="text-xs font-bold text-indigo-800 hover:underline cursor-pointer"
+              >
+                فتح فواتير المشتريات
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+            {expiryAlerts.slice(0, 6).map(al => (
+              <div key={al.id} className="bg-white border border-amber-200 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-bold text-slate-800 truncate">{al.productName}</div>
+                  <div className="text-[11px] text-slate-500">{al.warehouseName} • {al.qty} {al.unit}</div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold shrink-0 ${
+                  al.daysRemaining <= 0 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {al.daysRemaining <= 0 ? 'منتهي' : `${al.daysRemaining} يوم`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions Bar */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
@@ -148,29 +184,23 @@ export default function DashboardSection() {
               <tr className="text-xs font-bold text-slate-700 border-b border-slate-200">
                 <th className="p-3">المخزن</th>
                 <th className="p-3">الشركة المنتجة</th>
-                <th className="p-3">قيمة البضاعة بالمخزن</th>
-                <th className="p-3">الفلوس (نقدية المخزن)</th>
-                <th className="p-3">عهدة المناديب (بضاعة + فلوس)</th>
-                <th className="p-3">إجمالي الرصيد الكلي</th>
+                <th className="p-3">صافي رصيد المخزن</th>
+                <th className="p-3">بضاعة مع المناديب</th>
+                <th className="p-3">إجمالي قيمة البضاعة</th>
                 <th className="p-3">تفاصيل</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredWarehouses.map((w) => {
-                const repTotal = Number(w.repGoods || 0) + Number(w.repCash || 0);
-                const total = Number(w.goodsValue || 0) + Number(w.cash || 0) + repTotal;
+                const repGoodsVal = Number(w.repGoods || 0);
+                const netGoods = Number(w.goodsValue || 0);
+                const total = netGoods + repGoodsVal;
                 return (
                   <tr key={w.id} className="hover:bg-slate-50 transition">
                     <td className="p-3 font-bold text-slate-800">{w.name}</td>
                     <td className="p-3 text-xs text-slate-600">{getCompanyName(w.companyId)}</td>
-                    <td className="p-3 font-semibold text-blue-700">{w.goodsValue.toLocaleString()} ج.م</td>
-                    <td className="p-3 font-semibold text-emerald-700">{w.cash.toLocaleString()} ج.م</td>
-                    <td className="p-3 text-xs text-amber-800 font-semibold">
-                      {repTotal.toLocaleString()} ج.م
-                      <span className="block text-[11px] text-slate-400">
-                        (بضاعة: {w.repGoods.toLocaleString()} | فلوس: {w.repCash.toLocaleString()})
-                      </span>
-                    </td>
+                    <td className="p-3 font-semibold text-emerald-700">{netGoods.toLocaleString()} ج.م</td>
+                    <td className="p-3 font-semibold text-amber-800">{repGoodsVal.toLocaleString()} ج.م</td>
                     <td className="p-3 font-extrabold text-[#1a237e]">{total.toLocaleString()} ج.م</td>
                     <td className="p-3">
                       <button

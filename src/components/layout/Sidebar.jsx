@@ -22,7 +22,8 @@ const MENU_GROUPS = [
     icon: '💰',
     children: [
       { label: 'الرصيد العام والحركات', sectionId: 'cash-balance' },
-      { label: 'تسجيل عملية خزنة', sectionId: 'cash-operations' }
+      { label: 'تسجيل عملية خزنة', sectionId: 'cash-operations' },
+      { label: 'قائمة المصروفات', sectionId: 'expenses-list' }
     ]
   },
   {
@@ -45,6 +46,7 @@ const MENU_GROUPS = [
       { label: 'فاتورة مرتجع', sectionId: 'return-invoice' },
       { label: 'فاتورة سداد عميل', sectionId: 'payment-invoice' },
       { label: 'فاتورة توريد للخزنة', sectionId: 'transfer-invoice' },
+      { label: 'سداد وتوريد (شركات / بنك)', sectionId: 'payment-transfer' },
       { label: 'سجل الفواتير المجمّع', sectionId: 'invoices-log' }
     ]
   },
@@ -72,17 +74,9 @@ const MENU_GROUPS = [
     label: 'المشتريات',
     icon: '🛒',
     children: [
+      { label: 'فاتورة مشتريات', sectionId: 'purchase-invoice' },
       { label: 'تحديث قوائم الأسعار', sectionId: 'purchase-prices' },
       { label: 'مرتجعات للشركات المنتجة', sectionId: 'purchase-returns' }
-    ]
-  },
-  {
-    id: 'expenses-sub',
-    label: 'المصروفات',
-    icon: '💸',
-    children: [
-      { label: 'قائمة المصروفات', sectionId: 'expenses-list' },
-      { label: 'إضافة مصروف جديد', sectionId: 'add-expense' }
     ]
   },
   {

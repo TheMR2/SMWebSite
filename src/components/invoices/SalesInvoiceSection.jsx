@@ -38,6 +38,7 @@ export default function SalesInvoiceSection() {
   const [repId, setRepId] = useState(initialRepId);
   const [warehouseId, setWarehouseId] = useState(String(currentRep?.warehouseId || data.warehouses[0]?.id || '1'));
   const [paymentType, setPaymentType] = useState('credit');
+  const [dueDate, setDueDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashDestination, setCashDestination] = useState('main_treasury');
   const [taxEnabled, setTaxEnabled] = useState(true);
@@ -292,6 +293,7 @@ export default function SalesInvoiceSection() {
       repId: repId ? Number(repId) : null,
       warehouseId: Number(warehouseId),
       paymentType,
+      dueDate: paymentType === 'credit' ? dueDate : '',
       paymentMethod,
       cashDestination,
       bonuses: bonusesSummary,
@@ -437,6 +439,18 @@ export default function SalesInvoiceSection() {
               <option value="cash">كاش (تحصيل فوري)</option>
             </select>
           </div>
+
+          {paymentType === 'credit' && (
+            <div>
+              <label className="block text-xs font-bold text-rose-800 mb-1">تاريخ استحقاق السداد (اختياري):</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full p-2.5 border border-rose-200 rounded-xl text-sm bg-white"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">طريقة الدفع:</label>

@@ -8,7 +8,7 @@ import DashboardSection from './components/dashboard/DashboardSection';
 import CashBalanceSection from './components/cashier/CashBalanceSection';
 import CashOperationsSection from './components/cashier/CashOperationsSection';
 import ExpensesListSection from './components/expenses/ExpensesListSection';
-import AddExpenseSection from './components/expenses/AddExpenseSection';
+import PurchaseInvoiceSection from './components/purchases/PurchaseInvoiceSection';
 import WarehouseOverviewSection from './components/warehouses/WarehouseOverviewSection';
 import WarehouseDetailSection from './components/warehouses/WarehouseDetailSection';
 import WarehouseMovementsSection from './components/warehouses/WarehouseMovementsSection';
@@ -74,7 +74,7 @@ function MainLayout() {
       case 'expenses-list':
         return <ExpensesListSection />;
       case 'add-expense':
-        return <AddExpenseSection />;
+        return <CashOperationsSection />;
       case 'warehouse-overview':
         return <WarehouseOverviewSection />;
       case 'warehouse-detail':
@@ -89,6 +89,8 @@ function MainLayout() {
         return <PaymentInvoiceSection />;
       case 'transfer-invoice':
         return <TransferInvoiceSection />;
+      case 'payment-transfer':
+        return <CashOperationsSection mode="payment_transfer" />;
       case 'rep-custody-invoice':
         return <RepCustodyInvoiceSection />;
       case 'invoices-log':
@@ -105,6 +107,8 @@ function MainLayout() {
         return <PriceListsSection />;
       case 'products':
         return <ProductsSection />;
+      case 'purchase-invoice':
+        return <PurchaseInvoiceSection />;
       case 'purchase-prices':
         return <PurchasePricesSection />;
       case 'purchase-returns':

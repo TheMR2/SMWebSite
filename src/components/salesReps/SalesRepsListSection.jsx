@@ -3,8 +3,7 @@ import { useERP } from '../../context/ERPContext';
 import SectionCard from '../ui/SectionCard';
 import Badge from '../ui/Badge';
 import RepFormModal from './RepFormModal';
-import DispatchGoodsModal from './DispatchGoodsModal';
-import { Users, UserPlus, Eye, Edit, Trash2, Truck } from 'lucide-react';
+import { Users, UserPlus, Eye, Edit, Trash2 } from 'lucide-react';
 
 export default function SalesRepsListSection() {
   const {
@@ -16,40 +15,33 @@ export default function SalesRepsListSection() {
     deleteRep
   } = useERP();
 
-  const isAdmin = currentUser?.role === 'admin';
+  const canManageReps =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'accountant' ||
+    (typeof currentUser?.role === 'string' && currentUser.role.startsWith('accounting-'));
 
   const [repModalOpen, setRepModalOpen] = useState(false);
   const [editingRep, setEditingRep] = useState(null);
-  const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <SectionCard
         title="قائمة مناديب المبيعات وعهدهم"
-        subtitle="إدارة المناديب وتحميل البضاعة ومتابعة التحصيلات"
+        subtitle="إدارة المناديب والحد الائتماني للعهدة ومواعيد المديونيات (صرف البضاعة يتم عبر العهدة)"
         icon={Users}
         actions={
-          <>
+          canManageReps && (
             <button
-              onClick={() => setDispatchModalOpen(true)}
-              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+              onClick={() => {
+                setEditingRep(null);
+                setRepModalOpen(true);
+              }}
+              className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
             >
-              <Truck className="w-4 h-4" />
-              <span>تحميل بضاعة من مخزن لعهدة مندوب</span>
+              <UserPlus className="w-4 h-4" />
+              <span>إضافة مندوب</span>
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => {
-                  setEditingRep(null);
-                  setRepModalOpen(true);
-                }}
-                className="px-3.5 py-2 bg-[#1a237e] hover:bg-[#283593] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>إضافة مندوب</span>
-              </button>
-            )}
-          </>
+          )
         }
       >
         <div className="overflow-x-auto">
@@ -59,11 +51,11 @@ export default function SalesRepsListSection() {
                 <th className="p-3">#</th>
                 <th className="p-3">اسم المندوب</th>
                 <th className="p-3">النوع</th>
-                <th className="p-3">المخزن التابع</th>
+                <th className="p-3">المخزن</th>
                 <th className="p-3">عدد العملاء</th>
-                <th className="p-3">إجمالي المبيعات</th>
+                <th className="p-3">الحد الائتماني للعهدة</th>
+                <th className="p-3">تاريخ المديونية</th>
                 <th className="p-3">عهدة البضاعة</th>
-                <th className="p-3">عهدة الفلوس</th>
                 <th className="p-3">الإجراءات</th>
               </tr>
             </thead>
@@ -73,15 +65,26 @@ export default function SalesRepsListSection() {
                 return (
                   <tr key={rep.id} className="hover:bg-slate-50">
                     <td className="p-3">{idx + 1}</td>
-                    <td className="p-3 font-bold text-slate-800">{rep.name}</td>
+                    <td className="p-3 font-bold text-slate-800">
+                      {rep.name}
+                      <span className="block text-[11px] text-slate-400 font-normal">
+                        {rep.phone || ''} {rep.address ? `• ${rep.address}` : ''}
+                      </span>
+                    </td>
                     <td className="p-3">
                       <Badge variant="info">{rep.type === 'wholesale' ? 'جملة' : 'تجزئة'}</Badge>
                     </td>
-                    <td className="p-3 text-xs text-slate-600">{getWarehouseName(rep.warehouseId)}</td>
+                    <td className="p-3 text-xs text-slate-600">
+                      {rep.warehouseId ? getWarehouseName(rep.warehouseId) : 'مفتوح (كل المخازن)'}
+                    </td>
                     <td className="p-3 font-bold">{custCount} عميل</td>
-                    <td className="p-3 font-extrabold text-blue-700">{rep.totalSales.toLocaleString()} ج.م</td>
-                    <td className="p-3 font-bold text-amber-700">{rep.repGoods.toLocaleString()} ج.م</td>
-                    <td className="p-3 font-bold text-emerald-700">{rep.repCash.toLocaleString()} ج.م</td>
+                    <td className="p-3 font-bold text-indigo-700">
+                      {Number(rep.creditLimit || 0).toLocaleString()} ج.م
+                    </td>
+                    <td className="p-3 font-mono text-xs text-rose-700 font-bold">
+                      {rep.debtDueDate || '-'}
+                    </td>
+                    <td className="p-3 font-bold text-amber-700">{Number(rep.repGoods || 0).toLocaleString()} ج.م</td>
                     <td className="p-3">
                       <div className="flex items-center gap-1.5">
                         <button
@@ -94,7 +97,7 @@ export default function SalesRepsListSection() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {isAdmin && (
+                        {canManageReps && (
                           <>
                             <button
                               onClick={() => {
@@ -127,16 +130,13 @@ export default function SalesRepsListSection() {
         </div>
       </SectionCard>
 
-      <RepFormModal
-        isOpen={repModalOpen}
-        onClose={() => setRepModalOpen(false)}
-        initialData={editingRep}
-      />
-
-      <DispatchGoodsModal
-        isOpen={dispatchModalOpen}
-        onClose={() => setDispatchModalOpen(false)}
-      />
+      {canManageReps && (
+        <RepFormModal
+          isOpen={repModalOpen}
+          onClose={() => setRepModalOpen(false)}
+          initialData={editingRep}
+        />
+      )}
     </div>
   );
 }

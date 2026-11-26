@@ -18,7 +18,7 @@ export default function CustomerFormModal({ isOpen, onClose, initialData }) {
 
   useEffect(() => {
     if (initialData) {
-      setCustForm(initialData);
+      setCustForm({ ...initialData });
     } else {
       setCustForm({
         id: null,

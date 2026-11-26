@@ -28,9 +28,9 @@ export default function WarehouseOverviewSection() {
     companyFilter === 'all' ? true : w.companyId === Number(companyFilter)
   );
 
-  const totalGoodsValue = filteredWarehouses.reduce((s, w) => s + Number(w.goodsValue || 0), 0);
+  const totalNetGoods = filteredWarehouses.reduce((s, w) => s + Number(w.goodsValue || 0), 0);
   const totalRepGoods = filteredWarehouses.reduce((s, w) => s + Number(w.repGoods || 0), 0);
-  const totalRepCash = filteredWarehouses.reduce((s, w) => s + Number(w.repCash || 0), 0);
+  const totalAllGoods = totalNetGoods + totalRepGoods;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -54,18 +54,18 @@ export default function WarehouseOverviewSection() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <StatCard
             color="blue"
-            label="إجمالي قيمة البضاعة بالمخازن"
-            value={`${totalGoodsValue.toLocaleString()} ج.م`}
+            label="إجمالي قيمة البضاعة (بالمخازن والعهد)"
+            value={`${totalAllGoods.toLocaleString()} ج.م`}
           />
           <StatCard
             color="orange"
-            label="إجمالي أرصدة المناديب (بضاعة)"
+            label="بضاعة مع المناديب (العهد)"
             value={`${totalRepGoods.toLocaleString()} ج.م`}
           />
           <StatCard
-            color="purple"
-            label="إجمالي أرصدة المناديب (فلوس)"
-            value={`${totalRepCash.toLocaleString()} ج.م`}
+            color="green"
+            label="صافي رصيد البضاعة بالمخازن (المتاح)"
+            value={`${totalNetGoods.toLocaleString()} ج.م`}
           />
         </div>
 
@@ -77,25 +77,25 @@ export default function WarehouseOverviewSection() {
                 <th className="p-3">اسم المخزن (الشركة)</th>
                 <th className="p-3">الشركة المنتجة</th>
                 <th className="p-3">رصيد افتتاحي</th>
-                <th className="p-3">قيمة البضاعة</th>
-                <th className="p-3">بضاعة وفلوس المناديب</th>
-                <th className="p-3">إجمالي الرصيد</th>
+                <th className="p-3">بضاعة مع المناديب</th>
+                <th className="p-3">صافي رصيد المخزن</th>
+                <th className="p-3">إجمالي البضاعة</th>
                 <th className="p-3">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredWarehouses.map((w, idx) => {
-                const total = Number(w.goodsValue) + Number(w.repGoods) + Number(w.repCash);
+                const netGoods = Number(w.goodsValue || 0);
+                const repGoodsVal = Number(w.repGoods || 0);
+                const total = netGoods + repGoodsVal;
                 return (
                   <tr key={w.id} className="hover:bg-slate-50">
                     <td className="p-3 text-xs text-slate-400">{idx + 1}</td>
                     <td className="p-3 font-bold text-slate-800">{w.name}</td>
                     <td className="p-3 text-xs text-slate-600">{getCompanyName(w.companyId)}</td>
-                    <td className="p-3 text-slate-600">{w.openingBalance.toLocaleString()} ج.م</td>
-                    <td className="p-3 font-bold text-blue-700">{w.goodsValue.toLocaleString()} ج.م</td>
-                    <td className="p-3 text-xs text-slate-600">
-                      {(w.repGoods + w.repCash).toLocaleString()} ج.م
-                    </td>
+                    <td className="p-3 text-slate-600">{Number(w.openingBalance || 0).toLocaleString()} ج.م</td>
+                    <td className="p-3 font-bold text-amber-700">{repGoodsVal.toLocaleString()} ج.م</td>
+                    <td className="p-3 font-bold text-emerald-700">{netGoods.toLocaleString()} ج.م</td>
                     <td className="p-3 font-extrabold text-[#1a237e]">{total.toLocaleString()} ج.م</td>
                     <td className="p-3">
                       <div className="flex items-center gap-1.5">

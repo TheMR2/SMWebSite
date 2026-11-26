@@ -92,7 +92,7 @@ export default function WarehouseFormModal({ isOpen, onClose, initialData }) {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">قيمة البضاعة الحالية:</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">صافي البضاعة بالمخزن:</label>
             <input
               type="number"
               value={formData.goodsValue}
@@ -100,16 +100,7 @@ export default function WarehouseFormModal({ isOpen, onClose, initialData }) {
               className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">النقدية بالمخزن (الفلوس):</label>
-            <input
-              type="number"
-              value={formData.cash}
-              onChange={(e) => setFormData({ ...formData, cash: e.target.value })}
-              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
-            />
-          </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-bold text-slate-700 mb-1">بضاعة مع المناديب:</label>
             <input
               type="number"

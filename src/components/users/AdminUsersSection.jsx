@@ -24,7 +24,6 @@ export default function AdminUsersSection() {
     repType: 'wholesale',
     phone: '',
     address: '',
-    nationalId: '',
     status: 'active',
     allowedSections: getDefaultSectionsForRole('sales-rep')
   });
@@ -73,7 +72,6 @@ export default function AdminUsersSection() {
                 repType: 'wholesale',
                 phone: '',
                 address: '',
-                nationalId: '',
                 status: 'active',
                 allowedSections: getDefaultSectionsForRole('sales-rep')
               });
@@ -107,9 +105,9 @@ export default function AdminUsersSection() {
                     <td className="p-3">{u.id}</td>
                     <td className="p-3 font-bold text-slate-800">
                       {u.name}
-                      {(u.phone || u.nationalId) && (
+                      {u.phone && (
                         <span className="block text-[11px] text-slate-400 font-normal">
-                          {u.phone ? u.phone : ''} {u.nationalId ? `• قومي: ${u.nationalId}` : ''}
+                          {u.phone}
                         </span>
                       )}
                     </td>
@@ -147,7 +145,6 @@ export default function AdminUsersSection() {
                               ...u,
                               phone: u.phone || '',
                               address: u.address || '',
-                              nationalId: u.nationalId || '',
                               status: u.status || 'active',
                               allowedSections: resolvedSections
                             });
@@ -220,7 +217,7 @@ export default function AdminUsersSection() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف:</label>
               <input
@@ -229,16 +226,6 @@ export default function AdminUsersSection() {
                 onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
                 placeholder="01xxxxxxxxx"
                 className="w-full p-2.5 border border-slate-300 rounded-xl text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">الرقم القومي:</label>
-              <input
-                type="text"
-                value={userForm.nationalId || ''}
-                onChange={(e) => setUserForm({ ...userForm, nationalId: e.target.value })}
-                placeholder="14 رقم"
-                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-mono"
               />
             </div>
             <div>

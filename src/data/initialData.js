@@ -10,6 +10,16 @@ export const EXPENSE_PAYMENT_TYPES = {
   instapay: 'إنستا باي'
 };
 
+export const EXPENSE_CATEGORIES = {
+  salaries: 'مرتبات وأجور',
+  petty_cash: 'نثريات ومصروفات يومية',
+  taxes: 'ضرائب ورسوم حكومية',
+  utilities: 'كهرباء ومياه وإنترنت',
+  rent: 'إيجارات',
+  maintenance: 'صيانة وسيارات',
+  other: 'مصروفات أخرى'
+};
+
 export const SECTION_CATALOG = [
   {
     group: 'لوحة التحكم',
@@ -23,7 +33,8 @@ export const SECTION_CATALOG = [
     group: 'الخزنة',
     items: [
       { id: 'cash-balance', label: 'الرصيد العام والحركات' },
-      { id: 'cash-operations', label: 'تسجيل عملية خزنة' }
+      { id: 'cash-operations', label: 'تسجيل عملية خزنة' },
+      { id: 'expenses-list', label: 'قائمة المصروفات' }
     ]
   },
   {
@@ -41,6 +52,7 @@ export const SECTION_CATALOG = [
       { id: 'return-invoice', label: 'فاتورة مرتجع' },
       { id: 'payment-invoice', label: 'فاتورة سداد عميل' },
       { id: 'transfer-invoice', label: 'فاتورة توريد للخزنة' },
+      { id: 'payment-transfer', label: 'سداد وتوريد (شركات / بنك)' },
       { id: 'invoices-log', label: 'سجل الفواتير المجمّع' }
     ]
   },
@@ -61,15 +73,9 @@ export const SECTION_CATALOG = [
   {
     group: 'المشتريات',
     items: [
+      { id: 'purchase-invoice', label: 'فاتورة مشتريات' },
       { id: 'purchase-prices', label: 'تحديث قوائم الأسعار' },
       { id: 'purchase-returns', label: 'مرتجعات للشركات المنتجة' }
-    ]
-  },
-  {
-    group: 'المصروفات',
-    items: [
-      { id: 'expenses-list', label: 'قائمة المصروفات' },
-      { id: 'add-expense', label: 'إضافة مصروف جديد' }
     ]
   },
   {
@@ -103,7 +109,18 @@ export const ROLE_PERMISSIONS = {
   'admin': {
     label: 'مدير النظام',
     badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-    allowedSections: ['*']
+    allowedSections: [
+      'dashboard',
+      'cash-balance', 'cash-operations', 'expenses-list',
+      'warehouse-overview', 'warehouse-detail', 'warehouse-movements',
+      'return-invoice', 'payment-transfer', 'rep-custody-invoice', 'invoices-log',
+      'customers-list', 'customer-account',
+      'sales-reps', 'rep-report',
+      'purchase-invoice', 'purchase-prices', 'purchase-returns',
+      'price-lists', 'products',
+      'companies-list', 'company-accounts',
+      'admin-users', 'sales-manager', 'sales-reps-users', 'accounting-users'
+    ]
   },
   'sales-manager': {
     label: 'مشرف المبيعات',
@@ -123,7 +140,7 @@ export const ROLE_PERMISSIONS = {
     allowedSections: [
       'dashboard',
       'customers-list', 'customer-account',
-      'sales-invoice', 'return-invoice', 'transfer-invoice', 'rep-custody-invoice', 'invoices-log',
+      'sales-invoice', 'return-invoice', 'payment-invoice', 'transfer-invoice', 'rep-custody-invoice', 'invoices-log',
       'price-lists'
     ]
   },
@@ -132,13 +149,12 @@ export const ROLE_PERMISSIONS = {
     badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
     allowedSections: [
       'dashboard',
-      'cash-balance', 'cash-operations',
+      'cash-balance', 'cash-operations', 'expenses-list',
       'warehouse-overview', 'warehouse-detail', 'warehouse-movements',
-      'sales-invoice', 'return-invoice', 'payment-invoice', 'transfer-invoice', 'rep-custody-invoice', 'invoices-log',
+      'return-invoice', 'payment-transfer', 'rep-custody-invoice', 'invoices-log',
       'customers-list', 'customer-account',
       'sales-reps', 'rep-report',
-      'purchase-prices', 'purchase-returns',
-      'expenses-list', 'add-expense',
+      'purchase-invoice', 'purchase-prices', 'purchase-returns',
       'price-lists', 'products',
       'companies-list', 'company-accounts',
       'accounting-users'
@@ -177,6 +193,9 @@ export function createInitialData() {
       name: 'مندوب جملة 1 (أحمد محمود)',
       type: 'wholesale',
       phone: '01011223344',
+      address: 'القاهرة - مدينة نصر',
+      creditLimit: 50000,
+      debtDueDate: '2026-12-05',
       warehouseId: 1,
       vehicleName: 'شيفروليه جامبو',
       vehicleNumber: 'أ ب ج 1234',
@@ -192,6 +211,9 @@ export function createInitialData() {
       name: 'مندوب تجزئة 1 (محمد سعيد)',
       type: 'retail',
       phone: '01055667788',
+      address: 'الجيزة - فيصل',
+      creditLimit: 30000,
+      debtDueDate: '2026-12-05',
       warehouseId: 2,
       vehicleName: 'سوزوكي فان',
       vehicleNumber: 'س ص ع 5678',
@@ -207,6 +229,9 @@ export function createInitialData() {
       name: 'مندوب جملة 2 (إبراهيم حسن)',
       type: 'wholesale',
       phone: '01099887766',
+      address: 'الإسكندرية - محرم بك',
+      creditLimit: 50000,
+      debtDueDate: '2026-12-10',
       warehouseId: 3,
       vehicleName: 'شيفروليه دبابة',
       vehicleNumber: 'م ن هـ 9012',
@@ -346,8 +371,36 @@ export function createInitialData() {
       items: [
         { productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', qty: 20, unit: 'كارتون', price: 250, total: 5000, details: 'عهدة افتتاحية' }
       ]
+    },
+    {
+      id: 4,
+      type: 'purchase',
+      number: 'PUR-501',
+      date: '2026-11-01',
+      companyId: 1,
+      companyName: 'شركة الأمل الغذائية',
+      warehouseId: 1,
+      warehouseName: 'مخزن شركة الأمل الغذائية',
+      total: 64800,
+      paymentStatus: 'unpaid',
+      notes: 'توريد بضاعة افتتاحي للمخزن',
+      items: [
+        { productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', qty: 120, unit: 'كارتون', expiryDate: '2026-12-31', unitCost: 220, total: 26400 },
+        { productId: 2, productName: 'زيت طعام نقي (كرتونة 12 زجاجة)', qty: 80, unit: 'كارتون', expiryDate: '2027-06-30', unitCost: 480, total: 38400 }
+      ]
     }
   ];
+
+  const stockBatches = [
+    { id: 1, productId: 1, productName: 'سكر سكريات (باكتة 10 كجم)', companyId: 1, warehouseId: 1, unit: 'كارتون', qty: 120, unitCost: 220, expiryDate: '2026-12-31', purchaseInvoiceNumber: 'PUR-501', date: '2026-11-01' },
+    { id: 2, productId: 2, productName: 'زيت طعام نقي (كرتونة 12 زجاجة)', companyId: 1, warehouseId: 1, unit: 'كارتون', qty: 80, unitCost: 480, expiryDate: '2027-06-30', purchaseInvoiceNumber: 'PUR-501', date: '2026-11-01' },
+    { id: 3, productId: 3, productName: 'مكرونة فاخرة (كرتونة 20 كيس)', companyId: 2, warehouseId: 2, unit: 'كارتون', qty: 95, unitCost: 155, expiryDate: '2026-11-30', purchaseInvoiceNumber: 'PUR-502', date: '2026-10-15' },
+    { id: 4, productId: 4, productName: 'لبن بودرة كامل الدسم (علبة 2.5 كجم)', companyId: 3, warehouseId: 3, unit: 'كارتون', qty: 60, unitCost: 430, expiryDate: '2027-03-31', purchaseInvoiceNumber: 'PUR-503', date: '2026-11-02' },
+    { id: 5, productId: 5, productName: 'أرز مصري فاخر (شكارة 25 كجم)', companyId: 2, warehouseId: 2, unit: 'كارتون', qty: 50, unitCost: 590, expiryDate: '2027-01-15', purchaseInvoiceNumber: 'PUR-502', date: '2026-10-15' },
+    { id: 6, productId: 6, productName: 'سمن نباتي (صفيحة 11 كجم)', companyId: 3, warehouseId: 3, unit: 'كارتون', qty: 45, unitCost: 660, expiryDate: '2027-05-20', purchaseInvoiceNumber: 'PUR-503', date: '2026-11-02' }
+  ];
+
+  const priceHistory = [];
 
   const customerLedger = [
     { id: 1, customerId: 1, date: '2026-11-01', type: 'فاتورة مبيعات آجل', refNumber: 'INV-1001', debit: 15000, credit: 0, balanceAfter: 15000, notes: 'مبيعات آجلة عبر مندوب جملة 1' },
@@ -357,11 +410,12 @@ export function createInitialData() {
 
   const warehouseMovements = [
     { id: 1, date: '2026-11-01', warehouseId: 1, type: 'صرف مبيعات', refNumber: 'INV-1001', description: 'صرف بضاعة لفاتورة عميل جملة 1', qty: 40, value: 13158 },
-    { id: 2, date: '2026-11-02', warehouseId: 1, type: 'صرف مبيعات', refNumber: 'INV-1002', description: 'صرف بضاعة لفاتورة عميل تجزئة 1 (كاش)', qty: 25, value: 7018 }
+    { id: 2, date: '2026-11-02', warehouseId: 1, type: 'صرف مبيعات', refNumber: 'INV-1002', description: 'صرف بضاعة لفاتورة عميل تجزئة 1 (كاش)', qty: 25, value: 7018 },
+    { id: 3, date: '2026-11-01', warehouseId: 1, type: 'فاتورة مشتريات', refNumber: 'PUR-501', description: 'توريد بضاعة افتتاحي من شركة الأمل الغذائية', qty: 200, value: 64800 }
   ];
 
   const expenses = [
-    { id: 1, date: '2026-11-02', type: 'cash', description: 'مصروفات عامة ونثريات المقر', amount: 5000 }
+    { id: 1, date: '2026-11-02', category: 'petty_cash', type: 'petty_cash', description: 'مصروفات عامة ونثريات المقر', amount: 5000 }
   ];
 
   const companyReturns = [
@@ -394,6 +448,8 @@ export function createInitialData() {
     customers,
     products,
     priceLists,
+    priceHistory,
+    stockBatches,
     invoices,
     customerLedger,
     warehouseMovements,

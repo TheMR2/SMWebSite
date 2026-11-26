@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { ROLE_PERMISSIONS } from '../../data/initialData';
-import { Menu, LogOut, RotateCcw, ArrowRight } from 'lucide-react';
+import { Menu, LogOut, RotateCcw, ArrowRight, Bell } from 'lucide-react';
+import Modal from '../ui/Modal';
 import logoImg from '../../assets/logo.png';
 
 export default function TopHeader({ onOpenMobileMenu }) {
-  const { currentUser, currentRep, logout, resetAllData, goBack, canGoBack } = useERP();
+  const { currentUser, currentRep, expiryAlerts, logout, resetAllData, goBack, canGoBack } = useERP();
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const roleConfig = ROLE_PERMISSIONS[currentUser?.role] || ROLE_PERMISSIONS['admin'];
+  const showExpiryBell = currentUser?.role !== 'sales-rep';
 
   const todayFormatted = new Date().toLocaleDateString('ar-EG', {
     year: 'numeric',
@@ -59,6 +62,27 @@ export default function TopHeader({ onOpenMobileMenu }) {
         </span>
 
         <div className="flex items-center gap-2 shrink-0">
+          {showExpiryBell && (
+            <button
+              type="button"
+              onClick={() => setAlertsOpen(true)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer border ${
+                expiryAlerts.length > 0
+                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200'
+              }`}
+              title="تنبيهات صلاحية البضاعة"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">الصلاحية</span>
+              {expiryAlerts.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold">
+                  {expiryAlerts.length}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => {
               if (window.confirm('هل تريد استعادة البيانات الافتراضية للتجربة من جديد؟')) {
@@ -81,6 +105,54 @@ export default function TopHeader({ onOpenMobileMenu }) {
           </button>
         </div>
       </div>
+
+      <Modal
+        isOpen={alertsOpen}
+        onClose={() => setAlertsOpen(false)}
+        title={`⚠️ تنبيهات صلاحية البضاعة بالمخازن (${expiryAlerts.length})`}
+        maxWidth="max-w-2xl"
+      >
+        {expiryAlerts.length === 0 ? (
+          <div className="p-6 text-center text-sm text-emerald-700 font-bold bg-emerald-50 rounded-xl">
+            جميع البضائع بالمخازن صالحة وبعيدة عن تاريخ الانتهاء.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse text-xs">
+              <thead className="bg-slate-100 font-bold text-slate-700">
+                <tr>
+                  <th className="p-2.5">الصنف</th>
+                  <th className="p-2.5">المخزن</th>
+                  <th className="p-2.5">الكمية</th>
+                  <th className="p-2.5">تاريخ الانتهاء</th>
+                  <th className="p-2.5">الحالة</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {expiryAlerts.map(al => (
+                  <tr key={al.id}>
+                    <td className="p-2.5 font-bold text-slate-800">{al.productName}</td>
+                    <td className="p-2.5 text-slate-600">{al.warehouseName}</td>
+                    <td className="p-2.5 font-bold">{al.qty} {al.unit}</td>
+                    <td className="p-2.5 font-mono">{al.expiryDate}</td>
+                    <td className="p-2.5">
+                      <span className={`px-2 py-0.5 rounded-full font-bold ${
+                        al.severity === 'expired'
+                          ? 'bg-rose-100 text-rose-800'
+                          : al.severity === 'critical'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {al.daysRemaining <= 0 ? 'منتهي الصلاحية' : `متبقي ${al.daysRemaining} يوم`}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
     </header>
   );
 }

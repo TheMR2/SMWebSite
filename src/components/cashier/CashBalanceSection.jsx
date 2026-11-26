@@ -86,6 +86,16 @@ export default function CashBalanceSection() {
                         <ArrowDownCircle className="w-3.5 h-3.5" />
                         وارد
                       </span>
+                    ) : t.category === 'company_payment' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-xs font-bold">
+                        <ArrowUpCircle className="w-3.5 h-3.5" />
+                        تسديد شركة
+                      </span>
+                    ) : t.category === 'bank_deposit' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
+                        <ArrowUpCircle className="w-3.5 h-3.5" />
+                        توريد للبنك
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 text-xs font-bold">
                         <ArrowUpCircle className="w-3.5 h-3.5" />

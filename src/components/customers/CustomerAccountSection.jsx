@@ -80,6 +80,23 @@ export default function CustomerAccountSection() {
               />
             </div>
 
+            <div className="mb-6 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-slate-500 block">الحد الائتماني الشهري:</span>
+                <strong className="text-sm text-[#1a237e]">{Number(cust.monthlyLimit || 0).toLocaleString()} ج.م</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block">الحد الائتماني السنوي:</span>
+                <strong className="text-sm text-indigo-800">{Number(cust.annualLimit || 0).toLocaleString()} ج.م</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block">المتبقي من الحد الشهري:</span>
+                <strong className="text-sm text-emerald-700">
+                  {Math.max(0, Number(cust.monthlyLimit || 0) - Number(cust.currentBalance || 0)).toLocaleString()} ج.م
+                </strong>
+              </div>
+            </div>
+
             <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h3 className="text-base font-extrabold text-[#1a237e]">
                 سجل العمليات وكشف الحساب لـ ({cust.name})
