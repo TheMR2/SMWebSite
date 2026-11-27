@@ -7,6 +7,8 @@ import {
   EXPENSE_CATEGORIES,
   getDefaultSectionsForRole
 } from '../data/initialData';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { fetchInitialErpState, syncSalesInvoiceToSupabase } from '../services/erpApi';
 
 const ERPContext = createContext(null);
 const STORAGE_KEY = 'alsafa_erp_state_v1';
@@ -279,6 +281,27 @@ export function ERPProvider({ children }) {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(1);
   const [selectedRepId, setSelectedRepId] = useState(1);
   const [notifications, setNotifications] = useState([]);
+  const [isLoadingBackend, setIsLoadingBackend] = useState(isSupabaseConfigured);
+  const backendMode = isSupabaseConfigured ? 'supabase' : 'local';
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let active = true;
+    fetchInitialErpState()
+      .then((remoteData) => {
+        if (!active || !remoteData) return;
+        if (remoteData.users?.length > 0) {
+          setData(migrateLegacyState(remoteData));
+        }
+      })
+      .catch((err) => {
+        console.error('Supabase initial load failed, using local fallback:', err);
+      })
+      .finally(() => {
+        if (active) setIsLoadingBackend(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const setActiveSection = (nextSection) => {
     setActiveSectionState(prev => {
@@ -657,6 +680,32 @@ export function ERPProvider({ children }) {
         invoices: [newInvoice, ...prev.invoices]
       };
     });
+
+    if (isSupabaseConfigured) {
+      syncSalesInvoiceToSupabase({
+        number: invNumber,
+        date: invDate,
+        customerId: custId,
+        repId: rId,
+        warehouseId: wId,
+        paymentType,
+        paymentMethod,
+        cashDestination,
+        bonuses,
+        bonusItems: normalizedBonusItems,
+        bonusGoodsValue: bonusGoodsVal,
+        items,
+        subtotal: Number(subtotal),
+        totalDiscount: Number(totalDiscount),
+        taxRate: Number(taxRate),
+        taxAmount: Number(taxAmount),
+        total: grandTotal,
+        dueDate: paymentType === 'credit' ? (dueDate || '') : ''
+      }).catch((err) => {
+        console.error('Failed to sync sales invoice to Supabase:', err);
+        notify('تم حفظ الفاتورة محلياً، لكن تعذر المزامنة مع Supabase', 'error');
+      });
+    }
 
     notify(`تم حفظ فاتورة المبيعات (${invNumber}) وتسميع الحركات بنجاح!`, 'success', effects);
     return invNumber;
@@ -2168,6 +2217,8 @@ export function ERPProvider({ children }) {
     <ERPContext.Provider
       value={{
         data,
+        backendMode,
+        isLoadingBackend,
         currentUser,
         currentRep,
         activeSection,
